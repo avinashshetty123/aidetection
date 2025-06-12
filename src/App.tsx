@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Shield, AlertTriangle, Video, Mic, Settings, History, Play, Pause, Camera, CameraOff } from 'lucide-react';
+import { Shield, AlertTriangle, Video, Mic, Settings, History, Play, Pause, Camera, CameraOff, MonitorSmartphone, Upload } from 'lucide-react';
 import TrustMeter from './components/TrustMeter';
 import LiveMonitor from './components/LiveMonitor';
 import EvidencePanel from './components/EvidencePanel';
 import MetricsPanel from './components/MetricsPanel';
 import SettingsPanel from './components/SettingsPanel';
 import MediaCapture from './components/MediaCapture';
+import ScreenCapture from './components/ScreenCapture';
+import VideoAnalyzer from './components/VideoAnalyzer';
 
 interface DetectionData {
   timestamp: number;
@@ -28,7 +30,7 @@ function App() {
     overallScore: 0,
     alert: false
   });
-  const [activeTab, setActiveTab] = useState<'monitor' | 'evidence' | 'metrics' | 'settings'>('monitor');
+  const [activeTab, setActiveTab] = useState<'monitor' | 'evidence' | 'metrics' | 'settings' | 'analyzer'>('monitor');
   const [detectionHistory, setDetectionHistory] = useState<DetectionData[]>([]);
   const [suspiciousSegments, setSuspiciousSegments] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -54,11 +56,25 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Request camera and microphone permissions
+  // Request permissions
   const requestPermissions = async () => {
     try {
+      // First try to get screen capture permission
+      try {
+        await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true
+        }).then(stream => {
+          // Stop the stream immediately - we'll create new ones when needed
+          stream.getTracks().forEach(track => track.stop());
+        });
+      } catch (screenError) {
+        console.warn('Screen capture permission not granted:', screenError);
+        // Continue anyway, we'll try again when user clicks start
+      }
+      
+      // Then try audio permission
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480 },
         audio: { sampleRate: 44100 }
       });
       
@@ -116,14 +132,17 @@ function App() {
     }
   };
 
-  const handleToggleDetection = () => {
+  const handleToggleDetection = async () => {
     if (!hasPermissions) {
       requestPermissions();
       return;
     }
     
-    setIsActive(!isActive);
-    if (!isActive) {
+    const newActiveState = !isActive;
+    setIsActive(newActiveState);
+    
+    if (newActiveState) {
+      // Starting detection
       setDetectionHistory([]);
       setCurrentData({
         timestamp: Date.now(),
@@ -132,6 +151,15 @@ function App() {
         overallScore: 0,
         alert: false
       });
+    } else {
+      // Stopping detection - notify backend
+      try {
+        await fetch('http://localhost:3001/api/toggle-recording', {
+          method: 'POST'
+        });
+      } catch (error) {
+        console.error('Failed to toggle recording state:', error);
+      }
     }
   };
 
@@ -258,6 +286,7 @@ function App() {
           <div className="space-y-2">
             {[
               { id: 'monitor', label: 'Live Monitor', icon: Video },
+              { id: 'analyzer', label: 'Video Analyzer', icon: Upload },
               { id: 'evidence', label: 'Evidence', icon: AlertTriangle },
               { id: 'metrics', label: 'Metrics', icon: Mic },
               { id: 'settings', label: 'Settings', icon: Settings }
@@ -335,12 +364,34 @@ function App() {
 
         {/* Main Content */}
         <main className="flex-1 overflow-hidden">
-          {/* Media Capture Component */}
+          {/* Media Capture Components */}
           {isActive && hasPermissions && backendStatus === 'online' && (
-            <MediaCapture
-              onDetectionResult={handleDetectionResult}
-              onProcessingChange={setIsProcessing}
-            />
+            <>
+              <ScreenCapture 
+                onDataAvailable={(blob, type) => {
+                  // Handle screen capture data
+                  const formData = new FormData();
+                  formData.append('media', blob, `screen_${Date.now()}.webm`);
+                  
+                  fetch('http://localhost:3001/api/detect', {
+                    method: 'POST',
+                    body: formData
+                  })
+                  .then(res => res.json())
+                  .then(result => {
+                    handleDetectionResult(result);
+                  })
+                  .catch(err => console.error('Screen detection error:', err));
+                }}
+                isActive={isActive}
+              />
+              {isActive && (
+                <MediaCapture
+                  onDetectionResult={handleDetectionResult}
+                  onProcessingChange={setIsProcessing}
+                />
+              )}
+            </>
           )}
           
           {activeTab === 'monitor' && (
@@ -349,6 +400,29 @@ function App() {
               currentData={currentData}
               history={detectionHistory}
             />
+          )}
+          {activeTab === 'analyzer' && (
+            <div className="p-6">
+              <h1 className="text-2xl font-bold mb-6">Video Analysis</h1>
+              <p className="text-slate-300 mb-6">
+                Upload a video file to analyze it for AI-generated content. 
+                The system will process the video and provide a trust score.
+              </p>
+              <VideoAnalyzer 
+                onAnalysisComplete={(result) => {
+                  // Add to suspicious segments if flagged
+                  if (result.suspicious) {
+                    setSuspiciousSegments(prev => [...prev, {
+                      id: Date.now(),
+                      timestamp: Date.now(),
+                      type: 'video',
+                      score: Math.round(result.trustScore * 100),
+                      duration: 0
+                    }]);
+                  }
+                }}
+              />
+            </div>
           )}
           {activeTab === 'evidence' && (
             <EvidencePanel 
