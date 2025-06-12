@@ -9,9 +9,12 @@ const MediaCapture = ({ onDetectionResult, onProcessingChange }: MediaCapturePro
   const [isAudioRecording, setIsAudioRecording] = useState(false);
   const audioRecorderRef = useRef<MediaRecorder | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
+  const isComponentMounted = useRef<boolean>(true);
   
   // Start audio recording
   const startAudioCapture = async () => {
+    if (!isComponentMounted.current) return;
+    
     try {
       // Request audio
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -22,6 +25,12 @@ const MediaCapture = ({ onDetectionResult, onProcessingChange }: MediaCapturePro
         }
       });
       
+      // Check if component is still mounted
+      if (!isComponentMounted.current) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
+      
       audioStreamRef.current = stream;
       
       // Create media recorder
@@ -29,10 +38,21 @@ const MediaCapture = ({ onDetectionResult, onProcessingChange }: MediaCapturePro
       
       // Handle data available event
       mediaRecorder.ondataavailable = async (event) => {
+        // Check if component is still mounted and recording
+        if (!isComponentMounted.current || !isAudioRecording) {
+          return;
+        }
+        
         if (event.data && event.data.size > 0) {
           onProcessingChange(true);
           
           try {
+            // Double check component is still mounted
+            if (!isComponentMounted.current) {
+              onProcessingChange(false);
+              return;
+            }
+            
             const formData = new FormData();
             formData.append('media', event.data, `audio_${Date.now()}.wav`);
             
@@ -41,6 +61,12 @@ const MediaCapture = ({ onDetectionResult, onProcessingChange }: MediaCapturePro
               body: formData
             });
             
+            // Check again if component is still mounted
+            if (!isComponentMounted.current) {
+              onProcessingChange(false);
+              return;
+            }
+            
             if (response.ok) {
               const result = await response.json();
               onDetectionResult(result);
@@ -48,7 +74,9 @@ const MediaCapture = ({ onDetectionResult, onProcessingChange }: MediaCapturePro
           } catch (error) {
             console.error('Audio detection error:', error);
           } finally {
-            onProcessingChange(false);
+            if (isComponentMounted.current) {
+              onProcessingChange(false);
+            }
           }
         }
       };
@@ -64,15 +92,26 @@ const MediaCapture = ({ onDetectionResult, onProcessingChange }: MediaCapturePro
   
   // Stop audio recording
   const stopAudioCapture = () => {
-    if (audioRecorderRef.current && isAudioRecording) {
-      audioRecorderRef.current.stop();
+    setIsAudioRecording(false);
+    
+    if (audioRecorderRef.current) {
+      try {
+        audioRecorderRef.current.stop();
+      } catch (e) {
+        console.warn('Error stopping audio recorder:', e);
+      }
       
       // Stop all tracks
       if (audioStreamRef.current) {
-        audioStreamRef.current.getTracks().forEach(track => track.stop());
+        audioStreamRef.current.getTracks().forEach(track => {
+          try {
+            track.stop();
+          } catch (e) {
+            console.warn('Error stopping audio track:', e);
+          }
+        });
       }
       
-      setIsAudioRecording(false);
       audioRecorderRef.current = null;
       audioStreamRef.current = null;
     }
@@ -80,9 +119,11 @@ const MediaCapture = ({ onDetectionResult, onProcessingChange }: MediaCapturePro
   
   // Start recording on mount, stop on unmount
   useEffect(() => {
+    isComponentMounted.current = true;
     startAudioCapture();
     
     return () => {
+      isComponentMounted.current = false;
       stopAudioCapture();
     };
   }, []);

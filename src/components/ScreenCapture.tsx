@@ -9,10 +9,16 @@ const ScreenCapture = ({ onDataAvailable, isActive }: ScreenCaptureProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const hasStartedRef = useRef<boolean>(false);
   
   // Start screen recording
   const startScreenCapture = async () => {
+    // Prevent multiple dialog prompts
+    if (hasStartedRef.current) return;
+    
     try {
+      hasStartedRef.current = true;
+      
       // Request screen capture
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: { 
@@ -48,22 +54,34 @@ const ScreenCapture = ({ onDataAvailable, isActive }: ScreenCaptureProps) => {
       };
     } catch (error) {
       console.error('Error starting screen capture:', error);
+      hasStartedRef.current = false;
     }
   };
   
   // Stop screen recording
   const stopScreenCapture = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+    if (mediaRecorderRef.current) {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (e) {
+        console.warn('Error stopping media recorder:', e);
+      }
       
       // Stop all tracks
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current.getTracks().forEach(track => {
+          try {
+            track.stop();
+          } catch (e) {
+            console.warn('Error stopping track:', e);
+          }
+        });
       }
       
       setIsRecording(false);
       mediaRecorderRef.current = null;
       streamRef.current = null;
+      hasStartedRef.current = false;
     }
   };
   
@@ -71,15 +89,13 @@ const ScreenCapture = ({ onDataAvailable, isActive }: ScreenCaptureProps) => {
   useEffect(() => {
     if (isActive && !isRecording) {
       startScreenCapture();
-    } else if (!isActive && isRecording) {
+    } else if (!isActive) {
       stopScreenCapture();
     }
     
-    // Clean up on unmount or when isActive changes to false
+    // Clean up on unmount
     return () => {
-      if (isRecording) {
-        stopScreenCapture();
-      }
+      stopScreenCapture();
     };
   }, [isActive]);
   

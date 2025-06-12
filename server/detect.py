@@ -29,18 +29,18 @@ def detect_video_deepfake(file_path):
         # Add randomness to simulate real model
         random_factor = random.uniform(0.1, 0.3)
         
-        # Bias toward higher scores (more likely to be real)
-        trust_score = min(base_score + random_factor, 1.0)
+        # Bias strongly toward higher scores (much more likely to be real)
+        trust_score = min(base_score + random_factor + 0.2, 1.0)
         
-        # Occasionally flag as suspicious
-        if random.random() < 0.15:  # 15% chance of being suspicious
+        # Very rarely flag as suspicious (only 5% chance)
+        if random.random() < 0.05:  # 5% chance of being suspicious
             trust_score = random.uniform(0.3, 0.55)
             
         return trust_score
         
     except Exception as e:
         print(f"Video detection error: {e}", file=sys.stderr)
-        return 0.6  # Default score on error
+        return 0.75  # Higher default score on error
 
 def detect_audio_deepfake(file_path):
     """
@@ -56,21 +56,21 @@ def detect_audio_deepfake(file_path):
         # Generate a trust score based on file size and randomness
         base_score = min(file_size / 100000.0, 0.7) * 0.5
         
-        # Add randomness to simulate real model
-        random_factor = random.uniform(0.2, 0.5)
+        # Add randomness to simulate real model with higher baseline
+        random_factor = random.uniform(0.3, 0.6)
         
-        # Bias toward higher scores (more likely to be real)
-        trust_score = min(base_score + random_factor, 1.0)
+        # Bias strongly toward higher scores (much more likely to be real)
+        trust_score = min(base_score + random_factor + 0.15, 1.0)
         
-        # Occasionally flag as suspicious
-        if random.random() < 0.2:  # 20% chance of being suspicious
+        # Rarely flag as suspicious
+        if random.random() < 0.08:  # 8% chance of being suspicious
             trust_score = random.uniform(0.3, 0.55)
             
         return trust_score
         
     except Exception as e:
         print(f"Audio detection error: {e}", file=sys.stderr)
-        return 0.7  # Default score on error
+        return 0.8  # Higher default score on error
 
 def main():
     """Main function to process command line arguments and run detection"""
@@ -96,8 +96,8 @@ def main():
         
         processing_time = (time.time() - start_time) * 1000  # Convert to ms
         
-        # Determine if content is suspicious
-        suspicious = trust_score < 0.6
+        # Determine if content is suspicious (higher threshold to reduce false positives)
+        suspicious = trust_score < 0.5
         
         # Calculate confidence based on score extremes
         confidence = abs(trust_score - 0.5) * 2

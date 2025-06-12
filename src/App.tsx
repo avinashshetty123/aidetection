@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Shield, AlertTriangle, Video, Mic, Settings, History, Play, Pause, Camera, CameraOff, MonitorSmartphone, Upload } from 'lucide-react';
+import { Shield, AlertTriangle, Video, Mic, Settings, History, Play, Pause, Camera, CameraOff, MonitorSmartphone, Upload, FileText, BarChart } from 'lucide-react';
 import TrustMeter from './components/TrustMeter';
 import LiveMonitor from './components/LiveMonitor';
 import EvidencePanel from './components/EvidencePanel';
@@ -8,6 +8,8 @@ import SettingsPanel from './components/SettingsPanel';
 import MediaCapture from './components/MediaCapture';
 import ScreenCapture from './components/ScreenCapture';
 import VideoAnalyzer from './components/VideoAnalyzer';
+import TextAnalyzer from './components/TextAnalyzer';
+import SessionSummary from './components/SessionSummary';
 
 interface DetectionData {
   timestamp: number;
@@ -30,11 +32,17 @@ function App() {
     overallScore: 0,
     alert: false
   });
-  const [activeTab, setActiveTab] = useState<'monitor' | 'evidence' | 'metrics' | 'settings' | 'analyzer'>('monitor');
+  const [activeTab, setActiveTab] = useState<'monitor' | 'evidence' | 'metrics' | 'settings' | 'analyzer' | 'text' | 'summary'>('monitor');
   const [detectionHistory, setDetectionHistory] = useState<DetectionData[]>([]);
   const [suspiciousSegments, setSuspiciousSegments] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [currentSession, setCurrentSession] = useState<{
+    startTime: number;
+    detectionCount: number;
+    suspiciousCount: number;
+    avgTrustScore: number;
+  } | null>(null);
 
   // Check backend status
   useEffect(() => {
@@ -130,6 +138,24 @@ function App() {
         duration: 2.0
       }]);
     }
+    
+    // Update current session data
+    if (currentSession) {
+      const trustScore = Math.round(result.trustScore * 100);
+      const newDetectionCount = currentSession.detectionCount + 1;
+      const newSuspiciousCount = currentSession.suspiciousCount + (result.suspicious ? 1 : 0);
+      
+      // Calculate new average trust score
+      const currentTotalScore = currentSession.avgTrustScore * currentSession.detectionCount;
+      const newAvgTrustScore = (currentTotalScore + trustScore) / newDetectionCount;
+      
+      setCurrentSession({
+        ...currentSession,
+        detectionCount: newDetectionCount,
+        suspiciousCount: newSuspiciousCount,
+        avgTrustScore: newAvgTrustScore
+      });
+    }
   };
 
   const handleToggleDetection = async () => {
@@ -139,10 +165,85 @@ function App() {
     }
     
     const newActiveState = !isActive;
-    setIsActive(newActiveState);
     
-    if (newActiveState) {
-      // Starting detection
+    if (!newActiveState) {
+      // Stopping detection - update state first to prevent new captures
+      setIsActive(false);
+      
+      // Force unmount components by setting state
+      setCurrentData({
+        ...currentData,
+        videoScore: 0,
+        audioScore: 0,
+      });
+      
+      // Notify backend
+      try {
+        await fetch('http://localhost:3001/api/toggle-recording', {
+          method: 'POST'
+        });
+        
+        // Force stop ALL media tracks in the browser
+        try {
+          // Get all media tracks from the browser
+          const mediaDevices = navigator.mediaDevices as any;
+          
+          // Stop all active media streams
+          if (mediaDevices.getTracks) {
+            const tracks = mediaDevices.getTracks();
+            if (tracks) {
+              tracks.forEach((track: MediaStreamTrack) => track.stop());
+            }
+          }
+          
+          // Enumerate and stop all devices
+          if (mediaDevices.enumerateDevices) {
+            mediaDevices.enumerateDevices()
+              .then((devices: MediaDeviceInfo[]) => {
+                devices.forEach(device => {
+                  if (device.kind === 'audioinput' || device.kind === 'videoinput') {
+                    navigator.mediaDevices.getUserMedia({ 
+                      audio: device.kind === 'audioinput' ? { deviceId: device.deviceId } : false,
+                      video: device.kind === 'videoinput' ? { deviceId: device.deviceId } : false
+                    })
+                    .then(stream => {
+                      stream.getTracks().forEach(track => track.stop());
+                    })
+                    .catch(() => {});
+                  }
+                });
+              })
+              .catch(() => {});
+          }
+          
+          // Find and stop all existing tracks in DOM
+          document.querySelectorAll('audio, video').forEach(element => {
+            const mediaElement = element as HTMLMediaElement;
+            if (mediaElement.srcObject instanceof MediaStream) {
+              const stream = mediaElement.srcObject;
+              stream.getTracks().forEach(track => track.stop());
+              mediaElement.srcObject = null;
+            }
+          });
+          
+          console.log('Forced stop of all media tracks');
+          
+          // Force garbage collection hint
+          setTimeout(() => {
+            // This is just a hint to the browser
+            if (window.gc) window.gc();
+          }, 100);
+          
+        } catch (e) {
+          console.warn('Error stopping media tracks:', e);
+        }
+        
+        // Session is ending, currentSession will be saved by SessionSummary component
+      } catch (error) {
+        console.error('Failed to toggle recording state:', error);
+      }
+    } else {
+      // Starting detection - initialize new session
       setDetectionHistory([]);
       setCurrentData({
         timestamp: Date.now(),
@@ -151,15 +252,17 @@ function App() {
         overallScore: 0,
         alert: false
       });
-    } else {
-      // Stopping detection - notify backend
-      try {
-        await fetch('http://localhost:3001/api/toggle-recording', {
-          method: 'POST'
-        });
-      } catch (error) {
-        console.error('Failed to toggle recording state:', error);
-      }
+      
+      // Initialize new session
+      setCurrentSession({
+        startTime: Date.now(),
+        detectionCount: 0,
+        suspiciousCount: 0,
+        avgTrustScore: 0
+      });
+      
+      // Update active state to start detection
+      setIsActive(true);
     }
   };
 
@@ -287,6 +390,8 @@ function App() {
             {[
               { id: 'monitor', label: 'Live Monitor', icon: Video },
               { id: 'analyzer', label: 'Video Analyzer', icon: Upload },
+              { id: 'text', label: 'Text Analyzer', icon: FileText },
+              { id: 'summary', label: 'AI Verdict', icon: BarChart },
               { id: 'evidence', label: 'Evidence', icon: AlertTriangle },
               { id: 'metrics', label: 'Metrics', icon: Mic },
               { id: 'settings', label: 'Settings', icon: Settings }
@@ -365,10 +470,13 @@ function App() {
         {/* Main Content */}
         <main className="flex-1 overflow-hidden">
           {/* Media Capture Components */}
-          {isActive && hasPermissions && backendStatus === 'online' && (
+          {isActive && hasPermissions && backendStatus === 'online' ? (
             <>
               <ScreenCapture 
                 onDataAvailable={(blob, type) => {
+                  // Only process if still active
+                  if (!isActive) return;
+                  
                   // Handle screen capture data
                   const formData = new FormData();
                   formData.append('media', blob, `screen_${Date.now()}.webm`);
@@ -379,20 +487,20 @@ function App() {
                   })
                   .then(res => res.json())
                   .then(result => {
-                    handleDetectionResult(result);
+                    if (isActive) {
+                      handleDetectionResult(result);
+                    }
                   })
                   .catch(err => console.error('Screen detection error:', err));
                 }}
                 isActive={isActive}
               />
-              {isActive && (
-                <MediaCapture
-                  onDetectionResult={handleDetectionResult}
-                  onProcessingChange={setIsProcessing}
-                />
-              )}
+              <MediaCapture
+                onDetectionResult={handleDetectionResult}
+                onProcessingChange={setIsProcessing}
+              />
             </>
-          )}
+          ) : null}
           
           {activeTab === 'monitor' && (
             <LiveMonitor 
@@ -424,6 +532,29 @@ function App() {
               />
             </div>
           )}
+          {activeTab === 'text' && (
+            <div className="p-6">
+              <h1 className="text-2xl font-bold mb-6">Text Analysis</h1>
+              <p className="text-slate-300 mb-6">
+                Paste text to analyze it for AI-generated content.
+                The system will evaluate the text and provide a trust score.
+              </p>
+              <TextAnalyzer 
+                onAnalysisComplete={(result) => {
+                  // Add to suspicious segments if flagged
+                  if (result.suspicious) {
+                    setSuspiciousSegments(prev => [...prev, {
+                      id: Date.now(),
+                      timestamp: Date.now(),
+                      type: 'text',
+                      score: Math.round(result.trustScore * 100),
+                      duration: 0
+                    }]);
+                  }
+                }}
+              />
+            </div>
+          )}
           {activeTab === 'evidence' && (
             <EvidencePanel 
               segments={suspiciousSegments}
@@ -435,6 +566,19 @@ function App() {
               history={detectionHistory}
               isActive={isActive && hasPermissions}
             />
+          )}
+          {activeTab === 'summary' && (
+            <div className="p-6">
+              <h1 className="text-2xl font-bold mb-6">AI Detection Verdict</h1>
+              <p className="text-slate-300 mb-6">
+                View your detection session history and overall AI detection verdict.
+                The system analyzes patterns across all your detection sessions.
+              </p>
+              <SessionSummary 
+                isActive={isActive}
+                currentSession={currentSession || undefined}
+              />
+            </div>
           )}
           {activeTab === 'settings' && (
             <SettingsPanel />
