@@ -10,7 +10,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "setup:python": "cd server && python3 -m pip install -r requirements.txt"
+    "setup:python": "cd server && python setup.py"
   },
   "dependencies": {
     "lucide-react": "^0.344.0",

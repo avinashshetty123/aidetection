@@ -1,6 +1,6 @@
 # AI Detection Bolt
 
-A real-time AI-generated content detection system for video and audio.
+A real-time AI-powered deepfake detection system for video and audio.
 
 ## Getting Started
 
@@ -22,8 +22,22 @@ A real-time AI-generated content detection system for video and audio.
    ```
    npm run setup:python
    ```
-   
-   This will install the required Python packages (opencv-python and numpy).
+
+### Text Detection Setup
+
+For text detection functionality, you have two options:
+
+1. **Basic Text Detection** (No additional setup required)
+   - Works with just OpenCV
+   - Detects potential text regions but doesn't read the text
+
+2. **Full Text Detection with OCR** (Recommended)
+   - Run the installation script:
+     ```
+     cd server
+     install_text_detection.bat
+     ```
+   - Download and install Tesseract OCR from: https://github.com/UB-Mannheim/tesseract/wiki
 
 ### Running the Application
 
@@ -49,15 +63,33 @@ To run only the backend:
 npm run dev:server
 ```
 
-### Building for Production
-
-```
-npm run build
-```
-
 ## Features
 
-- Real-time deepfake detection for video and audio
+- Real-time deepfake detection for video and audio using AI models
+- Video detection using MesoNet architecture
+- Audio detection using CNN-based classifier
+- Text detection in videos and images
 - Live monitoring of media streams
 - Detection history tracking
 - Suspicious content flagging
+
+## Troubleshooting
+
+If you encounter issues with Python package installation:
+
+1. Try installing packages individually:
+   ```
+   pip install --user opencv-python
+   pip install --user numpy
+   ```
+
+2. For pytesseract installation issues:
+   ```
+   pip install --no-deps pytesseract
+   pip install pillow
+   ```
+
+3. If you see "Failed to write executable" errors, try:
+   - Run command prompt as administrator
+   - Use the `--user` flag with pip
+   - Use the installation batch script provided

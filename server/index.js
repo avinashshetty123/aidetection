@@ -22,6 +22,12 @@ if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir, { recursive: true });
 }
 
+// Create models directory if it doesn't exist
+const modelsDir = path.join(__dirname, 'models');
+if (!fs.existsSync(modelsDir)) {
+  fs.mkdirSync(modelsDir, { recursive: true });
+}
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -114,8 +120,15 @@ cleanupTempFiles();
 // Python inference function
 function runPythonInference(filePath, mediaType) {
   return new Promise((resolve, reject) => {
+    // Check if file exists before running inference
+    if (!fs.existsSync(filePath)) {
+      return reject(new Error(`File not found: ${filePath}`));
+    }
+    
     const pythonScript = path.join(__dirname, 'detect.py');
-    const py = spawn('python', [pythonScript, filePath, mediaType]);
+    // Use python3 on Unix-like systems, python on Windows
+    const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
+    const py = spawn(pythonCommand, [pythonScript, filePath, mediaType]);
     
     let output = '';
     let error = '';
@@ -126,6 +139,7 @@ function runPythonInference(filePath, mediaType) {
     
     py.stderr.on('data', (data) => {
       error += data.toString();
+      console.error(`Python stderr: ${data}`);
     });
     
     py.on('close', (code) => {
@@ -149,6 +163,11 @@ function runPythonInference(filePath, mediaType) {
   });
 }
 
+// Text detection function
+function detectText(filePath) {
+  return runPythonInference(filePath, 'text');
+}
+
 // Toggle recording state
 app.post('/api/toggle-recording', (req, res) => {
   isRecording = !isRecording;
@@ -166,6 +185,80 @@ app.get('/api/recording-state', (req, res) => {
   res.json({ isRecording });
 });
 
+// Text detection endpoint
+app.post('/api/detect-text', upload.single('media'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No media file provided' });
+    }
+
+    const filePath = req.file.path;
+    console.log(`Processing text detection on file: ${filePath}`);
+    
+    // Run text detection
+    const result = await detectText(filePath);
+    
+    // Add timestamp
+    const detectionData = {
+      ...result,
+      timestamp: Date.now(),
+      filePath: filePath
+    };
+    
+    // Store in history if suspicious
+    if (result.suspicious) {
+      detectionHistory.push(detectionData);
+      
+      suspiciousSegments.push({
+        id: Date.now(),
+        timestamp: Date.now(),
+        type: 'text',
+        score: Math.round(result.trustScore * 100),
+        duration: 1.0,
+        filePath: filePath,
+        model: result.model || 'TextDetection',
+        textResults: result.textResults || []
+      });
+    } else {
+      // Delete the file if not suspicious
+      try {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      } catch (e) {
+        console.warn('Failed to delete non-suspicious file:', e.message);
+      }
+    }
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('Text detection error:', error);
+    
+    // Delete the file on error
+    if (req.file && req.file.path) {
+      try {
+        if (fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+      } catch (e) {
+        console.warn('Failed to delete file on error:', e.message);
+      }
+    }
+    
+    res.status(500).json({ 
+      error: 'Text detection failed', 
+      details: error.message,
+      trustScore: 0.5,
+      suspicious: false,
+      mediaType: 'text',
+      confidence: 0.5,
+      processingTime: 300,
+      model: 'Error'
+    });
+  }
+});
+
 // Detection endpoint
 app.post('/api/detect', upload.single('media'), async (req, res) => {
   try {
@@ -177,7 +270,9 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
     if (!isRecording) {
       // Delete the file immediately
       try {
-        fs.unlinkSync(req.file.path);
+        if (fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
       } catch (e) {
         console.warn('Failed to delete file:', e.message);
       }
@@ -228,7 +323,8 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
         type: mediaType,
         score: Math.round(result.trustScore * 100),
         duration: 2.0,
-        filePath: filePath
+        filePath: filePath,
+        model: result.model || 'AI'
       });
     }
     
@@ -242,16 +338,19 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       suspicious: result.suspicious,
       mediaType: result.mediaType,
       confidence: result.confidence || 0.85,
-      processingTime: result.processingTime || Math.random() * 500 + 200
+      processingTime: result.processingTime,
+      model: result.model || 'AI'
     });
     
   } catch (error) {
     console.error('Detection error:', error);
     
     // Delete the file on error
-    if (req.file) {
+    if (req.file && req.file.path) {
       try {
-        fs.unlinkSync(req.file.path);
+        if (fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
       } catch (e) {
         console.warn('Failed to delete file on error:', e.message);
       }
@@ -260,12 +359,12 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
     res.status(500).json({ 
       error: 'Detection failed', 
       details: error.message,
-      // Return mock data as fallback
-      trustScore: 0.7 + Math.random() * 0.25,
-      suspicious: Math.random() < 0.2,
+      trustScore: 0.5,
+      suspicious: false,
       mediaType: req.file?.mimetype.includes('video') ? 'video' : 'audio',
-      confidence: 0.75,
-      processingTime: 300
+      confidence: 0.5,
+      processingTime: 300,
+      model: 'Error'
     });
   }
 });
@@ -318,10 +417,6 @@ app.delete('/api/suspicious', (req, res) => {
   Promise.all(deletePromises).then(() => {
     // Reset suspicious segments
     suspiciousSegments = [];
-    
-    // Also clean up all temp files
-    cleanupTempFiles();
-    
     res.json({ success: true });
   });
 });
@@ -331,85 +426,14 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     timestamp: Date.now(),
-    python: 'available' // We'll assume Python is available
+    python: 'available',
+    models: fs.existsSync(modelsDir) ? 'available' : 'missing'
   });
 });
 
 app.listen(PORT, () => {
   console.log(`🚀 TRUVOICE Backend running on http://localhost:${PORT}`);
   console.log(`📁 Temp directory: ${tempDir}`);
+  console.log(`🤖 Models directory: ${modelsDir}`);
   console.log(`🐍 Make sure Python dependencies are installed: npm run setup:python`);
-});
-// Text detection endpoint
-app.post('/api/detect-text', express.json(), async (req, res) => {
-  try {
-    if (!req.body.text) {
-      return res.status(400).json({ error: 'No text provided' });
-    }
-
-    const text = req.body.text;
-    console.log(`Processing text analysis, length: ${text.length} characters`);
-    
-    // Simulate processing time
-    const startTime = Date.now();
-    const processingTime = Math.random() * 300 + 100;
-    
-    // Wait for simulated processing time
-    await new Promise(resolve => setTimeout(resolve, processingTime));
-    
-    // Generate analysis result based on text characteristics
-    const wordCount = text.split(/\s+/).length;
-    const avgWordLength = text.length / wordCount;
-    const sentenceCount = text.split(/[.!?]+/).length;
-    const avgSentenceLength = wordCount / sentenceCount;
-    
-    // Calculate trust score based on text patterns
-    // This is a simplified heuristic - in production you'd use a real AI model
-    let trustScore = 0.5; // Start neutral
-    
-    // Very long average sentences often indicate AI text
-    if (avgSentenceLength > 25) trustScore -= 0.2;
-    else if (avgSentenceLength < 10) trustScore += 0.1;
-    
-    // Very consistent word length often indicates AI text
-    if (avgWordLength > 6) trustScore -= 0.1;
-    
-    // Very short or very long texts are more likely to be AI
-    if (wordCount < 20) trustScore += 0.1;
-    else if (wordCount > 500) trustScore -= 0.15;
-    
-    // Add some randomness
-    trustScore += (Math.random() - 0.5) * 0.2;
-    
-    // Clamp between 0 and 1
-    trustScore = Math.max(0, Math.min(1, trustScore));
-    
-    // Determine if content is suspicious
-    const suspicious = trustScore < 0.6;
-    
-    // Calculate confidence based on score extremes
-    const confidence = Math.min(0.95, Math.abs(trustScore - 0.5) * 2);
-    
-    const result = {
-      trustScore,
-      suspicious,
-      mediaType: 'text',
-      confidence,
-      processingTime: Date.now() - startTime
-    };
-    
-    res.json(result);
-    
-  } catch (error) {
-    console.error('Text detection error:', error);
-    res.status(500).json({ 
-      error: 'Text detection failed', 
-      details: error.message,
-      trustScore: 0.7 + Math.random() * 0.25,
-      suspicious: Math.random() < 0.2,
-      mediaType: 'text',
-      confidence: 0.75,
-      processingTime: 300
-    });
-  }
 });
