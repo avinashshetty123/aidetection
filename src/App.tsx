@@ -25,6 +25,7 @@ function App() {
   const [isActive, setIsActive] = useState(false);
   const [hasPermissions, setHasPermissions] = useState(false);
   const [permissionError, setPermissionError] = useState<string>('');
+  const [isRequestingPermissions, setIsRequestingPermissions] = useState(false);
   const [currentData, setCurrentData] = useState<DetectionData>({
     timestamp: Date.now(),
     videoScore: 0,
@@ -60,42 +61,75 @@ function App() {
     };
 
     checkBackend();
-    const interval = setInterval(checkBackend, 30000); // Check every 30 seconds
+    const interval = setInterval(checkBackend, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // Request permissions
+  // Request permissions with proper error handling
   const requestPermissions = async () => {
+    if (isRequestingPermissions) return;
+    
+    setIsRequestingPermissions(true);
+    setPermissionError('');
+    
     try {
-      // First try to get screen capture permission
-      try {
-        await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: true
-        }).then(stream => {
-          // Stop the stream immediately - we'll create new ones when needed
-          stream.getTracks().forEach(track => track.stop());
-        });
-      } catch (screenError) {
-        console.warn('Screen capture permission not granted:', screenError);
-        // Continue anyway, we'll try again when user clicks start
-      }
-      
-      // Then try audio permission
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { sampleRate: 44100 }
+      // Request microphone permission first
+      console.log('Requesting microphone permission...');
+      const audioStream = await navigator.mediaDevices.getUserMedia({
+        audio: { 
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 44100 
+        }
       });
+      
+      // Stop the test stream
+      audioStream.getTracks().forEach(track => track.stop());
+      console.log('Microphone permission granted');
+      
+      // Request screen capture permission
+      console.log('Requesting screen capture permission...');
+      try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: { 
+            cursor: "always",
+            frameRate: 15
+          },
+          audio: true
+        });
+        
+        // Stop the test stream
+        screenStream.getTracks().forEach(track => track.stop());
+        console.log('Screen capture permission granted');
+      } catch (screenError) {
+        console.warn('Screen capture permission denied, will use audio only:', screenError);
+        // Continue with audio-only detection
+      }
       
       setHasPermissions(true);
       setPermissionError('');
-      
-      // Stop the stream immediately - we'll create new ones when needed
-      stream.getTracks().forEach(track => track.stop());
+      console.log('All permissions granted successfully');
       
     } catch (error) {
       console.error('Permission error:', error);
-      setPermissionError(error instanceof Error ? error.message : 'Permission denied');
+      let errorMessage = 'Permission denied';
+      
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          errorMessage = 'Camera/microphone access denied. Please allow permissions and try again.';
+        } else if (error.name === 'NotFoundError') {
+          errorMessage = 'No camera or microphone found on this device.';
+        } else if (error.name === 'NotSupportedError') {
+          errorMessage = 'Camera/microphone not supported in this browser.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      setPermissionError(errorMessage);
       setHasPermissions(false);
+    } finally {
+      setIsRequestingPermissions(false);
     }
   };
 
@@ -145,7 +179,6 @@ function App() {
       const newDetectionCount = currentSession.detectionCount + 1;
       const newSuspiciousCount = currentSession.suspiciousCount + (result.suspicious ? 1 : 0);
       
-      // Calculate new average trust score
       const currentTotalScore = currentSession.avgTrustScore * currentSession.detectionCount;
       const newAvgTrustScore = (currentTotalScore + trustScore) / newDetectionCount;
       
@@ -159,64 +192,30 @@ function App() {
   };
 
   const handleToggleDetection = async () => {
-    if (!hasPermissions) {
-      requestPermissions();
+    if (!hasPermissions && !isActive) {
+      await requestPermissions();
       return;
     }
     
     const newActiveState = !isActive;
     
     if (!newActiveState) {
-      // Stopping detection - update state first to prevent new captures
+      // Stopping detection
       setIsActive(false);
       
-      // Force unmount components by setting state
       setCurrentData({
         ...currentData,
         videoScore: 0,
         audioScore: 0,
       });
       
-      // Notify backend
       try {
         await fetch('http://localhost:3001/api/toggle-recording', {
           method: 'POST'
         });
         
-        // Force stop ALL media tracks in the browser
+        // Force stop all media tracks
         try {
-          // Get all media tracks from the browser
-          const mediaDevices = navigator.mediaDevices as any;
-          
-          // Stop all active media streams
-          if (mediaDevices.getTracks) {
-            const tracks = mediaDevices.getTracks();
-            if (tracks) {
-              tracks.forEach((track: MediaStreamTrack) => track.stop());
-            }
-          }
-          
-          // Enumerate and stop all devices
-          if (mediaDevices.enumerateDevices) {
-            mediaDevices.enumerateDevices()
-              .then((devices: MediaDeviceInfo[]) => {
-                devices.forEach(device => {
-                  if (device.kind === 'audioinput' || device.kind === 'videoinput') {
-                    navigator.mediaDevices.getUserMedia({ 
-                      audio: device.kind === 'audioinput' ? { deviceId: device.deviceId } : false,
-                      video: device.kind === 'videoinput' ? { deviceId: device.deviceId } : false
-                    })
-                    .then(stream => {
-                      stream.getTracks().forEach(track => track.stop());
-                    })
-                    .catch(() => {});
-                  }
-                });
-              })
-              .catch(() => {});
-          }
-          
-          // Find and stop all existing tracks in DOM
           document.querySelectorAll('audio, video').forEach(element => {
             const mediaElement = element as HTMLMediaElement;
             if (mediaElement.srcObject instanceof MediaStream) {
@@ -226,24 +225,18 @@ function App() {
             }
           });
           
-          console.log('Forced stop of all media tracks');
+          console.log('All media tracks stopped');
           
-          // Force garbage collection hint
-          setTimeout(() => {
-            // This is just a hint to the browser
-            if (window.gc) window.gc();
-          }, 100);
-          
+          if (window.gc) window.gc();
         } catch (e) {
           console.warn('Error stopping media tracks:', e);
         }
         
-        // Session is ending, currentSession will be saved by SessionSummary component
       } catch (error) {
         console.error('Failed to toggle recording state:', error);
       }
     } else {
-      // Starting detection - initialize new session
+      // Starting detection
       setDetectionHistory([]);
       setCurrentData({
         timestamp: Date.now(),
@@ -253,7 +246,6 @@ function App() {
         alert: false
       });
       
-      // Initialize new session
       setCurrentSession({
         startTime: Date.now(),
         detectionCount: 0,
@@ -261,7 +253,6 @@ function App() {
         avgTrustScore: 0
       });
       
-      // Update active state to start detection
       setIsActive(true);
     }
   };
@@ -276,9 +267,27 @@ function App() {
     }
   };
 
-  // Request permissions on component mount
+  // Check permissions on mount
   useEffect(() => {
-    requestPermissions();
+    const checkExistingPermissions = async () => {
+      try {
+        const permissions = await Promise.all([
+          navigator.permissions.query({ name: 'microphone' as PermissionName }),
+          navigator.permissions.query({ name: 'camera' as PermissionName })
+        ]);
+        
+        const hasAudioPermission = permissions[0].state === 'granted';
+        const hasCameraPermission = permissions[1].state === 'granted';
+        
+        if (hasAudioPermission || hasCameraPermission) {
+          setHasPermissions(true);
+        }
+      } catch (error) {
+        console.log('Could not check existing permissions:', error);
+      }
+    };
+    
+    checkExistingPermissions();
   }, []);
 
   return (
@@ -329,16 +338,21 @@ function App() {
             
             <button
               onClick={handleToggleDetection}
-              disabled={backendStatus === 'offline'}
+              disabled={backendStatus === 'offline' || isRequestingPermissions}
               className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${
                 !hasPermissions 
                   ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
                   : isActive 
                     ? 'bg-red-600 hover:bg-red-700 text-white' 
                     : 'bg-green-600 hover:bg-green-700 text-white'
-              } ${backendStatus === 'offline' ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${(backendStatus === 'offline' || isRequestingPermissions) ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              {!hasPermissions ? (
+              {isRequestingPermissions ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Requesting...</span>
+                </>
+              ) : !hasPermissions ? (
                 <>
                   <Camera className="w-4 h-4" />
                   <span>Grant Permissions</span>
@@ -363,9 +377,7 @@ function App() {
           <div className="mt-3 p-3 bg-red-900/50 border border-red-700 rounded-lg">
             <div className="flex items-center space-x-2">
               <AlertTriangle className="w-4 h-4 text-red-400" />
-              <span className="text-sm text-red-300">
-                Camera/Microphone access required: {permissionError}
-              </span>
+              <span className="text-sm text-red-300">{permissionError}</span>
             </div>
           </div>
         )}
@@ -474,10 +486,8 @@ function App() {
             <>
               <ScreenCapture 
                 onDataAvailable={(blob, type) => {
-                  // Only process if still active
                   if (!isActive) return;
                   
-                  // Handle screen capture data
                   const formData = new FormData();
                   formData.append('media', blob, `screen_${Date.now()}.webm`);
                   
@@ -518,7 +528,6 @@ function App() {
               </p>
               <VideoAnalyzer 
                 onAnalysisComplete={(result) => {
-                  // Add to suspicious segments if flagged
                   if (result.suspicious) {
                     setSuspiciousSegments(prev => [...prev, {
                       id: Date.now(),
@@ -536,12 +545,11 @@ function App() {
             <div className="p-6">
               <h1 className="text-2xl font-bold mb-6">Text Analysis</h1>
               <p className="text-slate-300 mb-6">
-                Paste text to analyze it for AI-generated content.
+                Enter text to analyze it for AI-generated content.
                 The system will evaluate the text and provide a trust score.
               </p>
               <TextAnalyzer 
                 onAnalysisComplete={(result) => {
-                  // Add to suspicious segments if flagged
                   if (result.suspicious) {
                     setSuspiciousSegments(prev => [...prev, {
                       id: Date.now(),

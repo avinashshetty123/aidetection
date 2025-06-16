@@ -7,47 +7,60 @@ interface MediaCaptureProps {
 
 const MediaCapture = ({ onDetectionResult, onProcessingChange }: MediaCaptureProps) => {
   const [isAudioRecording, setIsAudioRecording] = useState(false);
+  const [audioError, setAudioError] = useState<string>('');
   const audioRecorderRef = useRef<MediaRecorder | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
   const isComponentMounted = useRef<boolean>(true);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Start audio recording
+  // Start audio recording with error handling
   const startAudioCapture = async () => {
     if (!isComponentMounted.current) return;
     
     try {
-      // Request audio
+      console.log('Starting audio capture...');
+      setAudioError('');
+      
+      // Request audio with enhanced settings
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { 
           echoCancellation: true,
           noiseSuppression: true,
-          sampleRate: 44100
+          autoGainControl: true,
+          sampleRate: 44100,
+          channelCount: 1
         }
       });
       
-      // Check if component is still mounted
       if (!isComponentMounted.current) {
         stream.getTracks().forEach(track => track.stop());
         return;
       }
       
       audioStreamRef.current = stream;
+      console.log('Audio stream obtained successfully');
       
-      // Create media recorder
-      const mediaRecorder = new MediaRecorder(stream);
+      // Check if MediaRecorder is supported
+      if (!MediaRecorder.isTypeSupported('audio/webm')) {
+        throw new Error('MediaRecorder not supported for audio/webm');
+      }
+      
+      // Create media recorder with error handling
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm'
+      });
       
       // Handle data available event
       mediaRecorder.ondataavailable = async (event) => {
-        // Check if component is still mounted and recording
         if (!isComponentMounted.current || !isAudioRecording) {
           return;
         }
         
         if (event.data && event.data.size > 0) {
+          console.log(`Audio data available: ${event.data.size} bytes`);
           onProcessingChange(true);
           
           try {
-            // Double check component is still mounted
             if (!isComponentMounted.current) {
               onProcessingChange(false);
               return;
@@ -61,7 +74,6 @@ const MediaCapture = ({ onDetectionResult, onProcessingChange }: MediaCapturePro
               body: formData
             });
             
-            // Check again if component is still mounted
             if (!isComponentMounted.current) {
               onProcessingChange(false);
               return;
@@ -69,7 +81,10 @@ const MediaCapture = ({ onDetectionResult, onProcessingChange }: MediaCapturePro
             
             if (response.ok) {
               const result = await response.json();
+              console.log('Audio detection result:', result);
               onDetectionResult(result);
+            } else {
+              console.error('Audio detection failed:', response.statusText);
             }
           } catch (error) {
             console.error('Audio detection error:', error);
@@ -81,38 +96,112 @@ const MediaCapture = ({ onDetectionResult, onProcessingChange }: MediaCapturePro
         }
       };
       
-      // Set recording interval (2 seconds)
+      // Handle recorder errors
+      mediaRecorder.onerror = (event) => {
+        console.error('MediaRecorder error:', event);
+        setAudioError('Recording error occurred');
+        restartAudioCapture();
+      };
+      
+      // Handle recorder state changes
+      mediaRecorder.onstart = () => {
+        console.log('MediaRecorder started');
+        setIsAudioRecording(true);
+      };
+      
+      mediaRecorder.onstop = () => {
+        console.log('MediaRecorder stopped');
+        setIsAudioRecording(false);
+      };
+      
+      // Start recording with 2-second intervals
       mediaRecorder.start(2000);
       audioRecorderRef.current = mediaRecorder;
-      setIsAudioRecording(true);
+      
+      // Handle stream errors
+      stream.getAudioTracks().forEach(track => {
+        track.onended = () => {
+          console.log('Audio track ended');
+          restartAudioCapture();
+        };
+      });
+      
     } catch (error) {
       console.error('Error starting audio capture:', error);
+      
+      let errorMessage = 'Failed to start audio capture';
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          errorMessage = 'Microphone permission denied';
+        } else if (error.name === 'NotFoundError') {
+          errorMessage = 'No microphone found';
+        } else if (error.name === 'NotSupportedError') {
+          errorMessage = 'Audio recording not supported';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      setAudioError(errorMessage);
+      
+      // Retry after 5 seconds
+      if (isComponentMounted.current) {
+        retryTimeoutRef.current = setTimeout(() => {
+          if (isComponentMounted.current) {
+            console.log('Retrying audio capture...');
+            startAudioCapture();
+          }
+        }, 5000);
+      }
+    }
+  };
+  
+  // Restart audio capture
+  const restartAudioCapture = () => {
+    console.log('Restarting audio capture...');
+    stopAudioCapture();
+    
+    if (isComponentMounted.current) {
+      setTimeout(() => {
+        if (isComponentMounted.current) {
+          startAudioCapture();
+        }
+      }, 1000);
     }
   };
   
   // Stop audio recording
   const stopAudioCapture = () => {
+    console.log('Stopping audio capture...');
     setIsAudioRecording(false);
+    setAudioError('');
+    
+    // Clear retry timeout
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
     
     if (audioRecorderRef.current) {
       try {
-        audioRecorderRef.current.stop();
+        if (audioRecorderRef.current.state !== 'inactive') {
+          audioRecorderRef.current.stop();
+        }
       } catch (e) {
         console.warn('Error stopping audio recorder:', e);
       }
       
-      // Stop all tracks
-      if (audioStreamRef.current) {
-        audioStreamRef.current.getTracks().forEach(track => {
-          try {
-            track.stop();
-          } catch (e) {
-            console.warn('Error stopping audio track:', e);
-          }
-        });
-      }
-      
       audioRecorderRef.current = null;
+    }
+    
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach(track => {
+        try {
+          track.stop();
+        } catch (e) {
+          console.warn('Error stopping audio track:', e);
+        }
+      });
       audioStreamRef.current = null;
     }
   };
@@ -120,13 +209,20 @@ const MediaCapture = ({ onDetectionResult, onProcessingChange }: MediaCapturePro
   // Start recording on mount, stop on unmount
   useEffect(() => {
     isComponentMounted.current = true;
+    console.log('MediaCapture component mounted, starting audio capture...');
     startAudioCapture();
     
     return () => {
+      console.log('MediaCapture component unmounting, stopping audio capture...');
       isComponentMounted.current = false;
       stopAudioCapture();
     };
   }, []);
+  
+  // Show error state if needed (for debugging)
+  if (audioError) {
+    console.warn('Audio capture error:', audioError);
+  }
   
   return null; // No UI needed
 };
