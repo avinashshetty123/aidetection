@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 300px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1e293b;
+      color: white;
+      margin: 0;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: #3b82f6;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 8px;
+      font-weight: bold;
+    }
+    
+    .title {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    
+    .subtitle {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    
+    .toggle-section {
+      background: #334155;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .toggle-label {
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .toggle {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      background: #64748b;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    
+    .toggle.active {
+      background: #3b82f6;
+    }
+    
+    .toggle-slider {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.3s;
+    }
+    
+    .toggle.active .toggle-slider {
+      transform: translateX(20px);
+    }
+    
+    .stats {
+      background: #334155;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    
+    .stats-title {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 12px;
+    }
+    
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    
+    .stat-label {
+      color: #94a3b8;
+    }
+    
+    .stat-value {
+      font-weight: 500;
+    }
+    
+    .high-risk { color: #ef4444; }
+    .medium-risk { color: #f59e0b; }
+    .low-risk { color: #10b981; }
+    
+    .footer {
+      text-align: center;
+      font-size: 11px;
+      color: #64748b;
+    }
+    
+    .status-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+    
+    .status-active { background: #10b981; }
+    .status-inactive { background: #64748b; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">🛡️</div>
+    <div class="title">AI Detection</div>
+    <div class="subtitle">Online Test Monitor</div>
+  </div>
+  
+  <div class="toggle-section">
+    <div class="toggle-row">
+      <div class="toggle-label">
+        <span class="status-indicator" id="statusIndicator"></span>
+        Detection Active
+      </div>
+      <div class="toggle" id="toggleSwitch">
+        <div class="toggle-slider"></div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="stats">
+    <div class="stats-title">Current Session</div>
+    <div class="stat-row">
+      <span class="stat-label">Analyses:</span>
+      <span class="stat-value" id="totalAnalyses">0</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">High Risk:</span>
+      <span class="stat-value high-risk" id="highRisk">0</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Medium Risk:</span>
+      <span class="stat-value medium-risk" id="mediumRisk">0</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Low Risk:</span>
+      <span class="stat-value low-risk" id="lowRisk">0</span>
+    </div>
+  </div>
+  
+  <div class="footer">
+    Platform-agnostic AI detection<br>
+    for academic integrity
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

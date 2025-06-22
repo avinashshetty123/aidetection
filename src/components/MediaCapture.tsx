@@ -13,7 +13,7 @@ const MediaCapture = ({ onDetectionResult, onProcessingChange }: MediaCapturePro
   const isComponentMounted = useRef<boolean>(true);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Start audio recording with error handling
+  // Start audio recording with enhanced error handling
   const startAudioCapture = async () => {
     if (!isComponentMounted.current) return;
     
@@ -40,17 +40,22 @@ const MediaCapture = ({ onDetectionResult, onProcessingChange }: MediaCapturePro
       audioStreamRef.current = stream;
       console.log('Audio stream obtained successfully');
       
-      // Check if MediaRecorder is supported
-      if (!MediaRecorder.isTypeSupported('audio/webm')) {
-        throw new Error('MediaRecorder not supported for audio/webm');
+      // Check MediaRecorder support with fallback
+      let mimeType = 'audio/webm';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'audio/mp4';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'audio/wav';
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            throw new Error('No supported audio format available');
+          }
+        }
       }
       
       // Create media recorder with error handling
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm'
-      });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
       
-      // Handle data available event
+      // Handle data available event with improved error handling
       mediaRecorder.ondataavailable = async (event) => {
         if (!isComponentMounted.current || !isAudioRecording) {
           return;
@@ -67,12 +72,19 @@ const MediaCapture = ({ onDetectionResult, onProcessingChange }: MediaCapturePro
             }
             
             const formData = new FormData();
-            formData.append('media', event.data, `audio_${Date.now()}.wav`);
+            const extension = mimeType.includes('webm') ? '.webm' : mimeType.includes('mp4') ? '.mp4' : '.wav';
+            formData.append('media', event.data, `audio_${Date.now()}${extension}`);
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
             
             const response = await fetch('http://localhost:3001/api/detect', {
               method: 'POST',
-              body: formData
+              body: formData,
+              signal: controller.signal
             });
+            
+            clearTimeout(timeoutId);
             
             if (!isComponentMounted.current) {
               onProcessingChange(false);
@@ -84,10 +96,14 @@ const MediaCapture = ({ onDetectionResult, onProcessingChange }: MediaCapturePro
               console.log('Audio detection result:', result);
               onDetectionResult(result);
             } else {
-              console.error('Audio detection failed:', response.statusText);
+              console.error('Audio detection failed:', response.status, response.statusText);
             }
           } catch (error) {
-            console.error('Audio detection error:', error);
+            if (error.name === 'AbortError') {
+              console.warn('Audio detection request timed out');
+            } else {
+              console.error('Audio detection error:', error);
+            }
           } finally {
             if (isComponentMounted.current) {
               onProcessingChange(false);

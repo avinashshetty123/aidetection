@@ -10,6 +10,10 @@ import ScreenCapture from './components/ScreenCapture';
 import VideoAnalyzer from './components/VideoAnalyzer';
 import TextAnalyzer from './components/TextAnalyzer';
 import SessionSummary from './components/SessionSummary';
+import PerformanceMonitor from './components/PerformanceMonitor';
+import TestResponseDetector from './components/TestResponseDetector';
+import PlatformIntegration from './components/PlatformIntegration';
+import ReportDashboard from './components/ReportDashboard';
 
 interface DetectionData {
   timestamp: number;
@@ -33,7 +37,9 @@ function App() {
     overallScore: 0,
     alert: false
   });
-  const [activeTab, setActiveTab] = useState<'monitor' | 'evidence' | 'metrics' | 'settings' | 'analyzer' | 'text' | 'summary'>('monitor');
+  const [activeTab, setActiveTab] = useState<'monitor' | 'evidence' | 'metrics' | 'settings' | 'analyzer' | 'text' | 'summary' | 'test-detector' | 'platform-integration' | 'reports'>('monitor');
+  const [connectionRetries, setConnectionRetries] = useState(0);
+  const maxRetries = 3;
   const [detectionHistory, setDetectionHistory] = useState<DetectionData[]>([]);
   const [suspiciousSegments, setSuspiciousSegments] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -45,25 +51,43 @@ function App() {
     avgTrustScore: number;
   } | null>(null);
 
-  // Check backend status
+  // Check backend status with retry logic
   useEffect(() => {
     const checkBackend = async () => {
       try {
-        const response = await fetch('http://localhost:3001/api/health');
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        const response = await fetch('http://localhost:3001/api/health', {
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
         if (response.ok) {
           setBackendStatus('online');
+          setConnectionRetries(0);
+        } else {
+          throw new Error(`HTTP ${response.status}`);
+        }
+      } catch (error) {
+        console.warn('Backend health check failed:', error);
+        setConnectionRetries(prev => prev + 1);
+        
+        if (connectionRetries < maxRetries) {
+          setBackendStatus('checking');
+          // Retry after a delay
+          setTimeout(checkBackend, 2000 * (connectionRetries + 1));
         } else {
           setBackendStatus('offline');
         }
-      } catch (error) {
-        setBackendStatus('offline');
       }
     };
 
     checkBackend();
     const interval = setInterval(checkBackend, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [connectionRetries]);
 
   // Request permissions with proper error handling
   const requestPermissions = async () => {
@@ -291,7 +315,7 @@ function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white">
+    <div className="min-h-screen bg-slate-900 text-white overflow-hidden">
       {/* Header */}
       <header className="bg-slate-800 border-b border-slate-700 px-6 py-4">
         <div className="flex items-center justify-between">
@@ -395,7 +419,7 @@ function App() {
         )}
       </header>
 
-      <div className="flex h-[calc(100vh-80px)]">
+      <div className="flex h-[calc(100vh-80px)] bg-slate-900">
         {/* Sidebar Navigation */}
         <nav className="w-64 bg-slate-800 border-r border-slate-700 p-4">
           <div className="space-y-2">
@@ -403,7 +427,10 @@ function App() {
               { id: 'monitor', label: 'Live Monitor', icon: Video },
               { id: 'analyzer', label: 'Video Analyzer', icon: Upload },
               { id: 'text', label: 'Text Analyzer', icon: FileText },
-              { id: 'summary', label: 'AI Verdict', icon: BarChart },
+              { id: 'test-detector', label: 'Test Detector', icon: Shield },
+              { id: 'platform-integration', label: 'Platform Integration', icon: MonitorSmartphone },
+              { id: 'reports', label: 'Reports', icon: BarChart },
+              { id: 'summary', label: 'AI Verdict', icon: History },
               { id: 'evidence', label: 'Evidence', icon: AlertTriangle },
               { id: 'metrics', label: 'Metrics', icon: Mic },
               { id: 'settings', label: 'Settings', icon: Settings }
@@ -477,10 +504,18 @@ function App() {
               )}
             </div>
           )}
+
+          {/* Performance Monitor */}
+          <div className="mt-6">
+            <PerformanceMonitor 
+              isActive={isActive && hasPermissions}
+              lastProcessingTime={currentData.processingTime}
+            />
+          </div>
         </nav>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-auto bg-slate-900">
           {/* Media Capture Components */}
           {isActive && hasPermissions && backendStatus === 'online' ? (
             <>
@@ -561,6 +596,36 @@ function App() {
                   }
                 }}
               />
+            </div>
+          )}
+          {activeTab === 'test-detector' && (
+            <div className="p-6">
+              <h1 className="text-2xl font-bold mb-6">Academic Test Response Detector</h1>
+              <p className="text-slate-300 mb-6">
+                Analyze student responses for AI-generated content in academic assessments.
+                Designed specifically for educational integrity monitoring.
+              </p>
+              <TestResponseDetector />
+            </div>
+          )}
+          {activeTab === 'platform-integration' && (
+            <div className="p-6">
+              <h1 className="text-2xl font-bold mb-6">Platform Integration</h1>
+              <p className="text-slate-300 mb-6">
+                Integrate AI detection with Google Forms, Moodle, Canvas, or any testing platform.
+                Platform-agnostic solution with real-time alerts and comprehensive reporting.
+              </p>
+              <PlatformIntegration />
+            </div>
+          )}
+          {activeTab === 'reports' && (
+            <div className="p-6">
+              <h1 className="text-2xl font-bold mb-6">Detection Reports</h1>
+              <p className="text-slate-300 mb-6">
+                Monitor AI detection results across all tests with detailed analytics.
+                Export comprehensive reports for academic integrity documentation.
+              </p>
+              <ReportDashboard />
             </div>
           )}
           {activeTab === 'evidence' && (

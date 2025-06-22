@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "AI Detection for Online Tests",
+  "version": "1.0.0",
+  "description": "Detect AI-generated responses in online tests and forms",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://docs.google.com/*",
+    "https://forms.google.com/*",
+    "https://classroom.google.com/*",
+    "http://localhost:3001/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://docs.google.com/*",
+        "https://forms.google.com/*",
+        "https://classroom.google.com/*",
+        "https://*.moodle.com/*",
+        "https://*.instructure.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["styles.css"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "AI Detection Settings"
+  }
+}

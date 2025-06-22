@@ -1,12 +1,16 @@
 import React from 'react';
-import { AlertTriangle, Download, Play, Trash2, Video, Mic } from 'lucide-react';
+import { AlertTriangle, Download, Play, Trash2, Video, Mic, FileText } from 'lucide-react';
 
 interface EvidenceSegment {
   id: number;
   timestamp: number;
-  type: 'video' | 'audio';
+  type: 'video' | 'audio' | 'text';
   score: number;
   duration: number;
+  textResults?: Array<{
+    text: string;
+    confidence: number;
+  }>;
 }
 
 interface EvidencePanelProps {
@@ -28,11 +32,21 @@ const EvidencePanel: React.FC<EvidencePanelProps> = ({ segments, onClearAll }) =
   };
 
   const getTypeIcon = (type: string) => {
-    return type === 'video' ? Video : Mic;
+    if (type === 'video') return Video;
+    if (type === 'audio') return Mic;
+    return FileText;
   };
 
   const getTypeColor = (type: string) => {
-    return type === 'video' ? 'text-blue-400' : 'text-purple-400';
+    if (type === 'video') return 'text-blue-400';
+    if (type === 'audio') return 'text-purple-400';
+    return 'text-green-400';
+  };
+
+  const getTypeBg = (type: string) => {
+    if (type === 'video') return 'bg-blue-600';
+    if (type === 'audio') return 'bg-purple-600';
+    return 'bg-green-600';
   };
 
   const groupedSegments = segments.reduce((acc, segment) => {
@@ -72,7 +86,7 @@ const EvidencePanel: React.FC<EvidencePanelProps> = ({ segments, onClearAll }) =
         ) : (
           <div className="space-y-6">
             {/* Summary Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-slate-800 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400">Total Segments</span>
@@ -95,6 +109,14 @@ const EvidencePanel: React.FC<EvidencePanelProps> = ({ segments, onClearAll }) =
                   </span>
                 </div>
               </div>
+              <div className="bg-slate-800 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Text Alerts</span>
+                  <span className="text-xl font-bold text-green-400">
+                    {segments.filter(s => s.type === 'text').length}
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* Evidence Timeline */}
@@ -111,7 +133,7 @@ const EvidencePanel: React.FC<EvidencePanelProps> = ({ segments, onClearAll }) =
                           className="flex items-center justify-between bg-slate-700 rounded-lg p-4 hover:bg-slate-600 transition-colors"
                         >
                           <div className="flex items-center space-x-4">
-                            <div className={`p-2 rounded-lg ${segment.type === 'video' ? 'bg-blue-600' : 'bg-purple-600'}`}>
+                            <div className={`p-2 rounded-lg ${getTypeBg(segment.type)}`}>
                               <TypeIcon className="w-4 h-4" />
                             </div>
                             <div>

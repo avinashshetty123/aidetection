@@ -63,8 +63,108 @@ To run only the backend:
 npm run dev:server
 ```
 
+### System Maintenance
+
+To optimize and clean the system:
+```
+npm run optimize
+```
+
+To run a full cleanup (optimize + lint):
+```
+npm run clean
+```
+
+To check system health:
+```
+npm run health-check
+```
+
+## 🎓 Academic AI Detection API
+
+### Public API Endpoint
+
+```bash
+POST http://localhost:3001/api/v1/analyze
+Content-Type: application/json
+
+{
+  "text": "Student's response text here...",
+  "studentId": "student123",
+  "questionId": "q1"
+}
+```
+
+### Response Format
+
+```json
+{
+  "aiScore": 0.87,
+  "isSuspectedAI": true,
+  "confidence": 0.92,
+  "riskLevel": "HIGH",
+  "message": "Likely AI-generated (Score: 87%)",
+  "detailedAnalysis": {
+    "linguistic": 85.2,
+    "structural": 78.9,
+    "semantic": 91.3,
+    "behavioral": 88.7
+  },
+  "detectedPatterns": [
+    "Formal transitions",
+    "Lack of personal language"
+  ],
+  "metadata": {
+    "timestamp": "2024-01-15T10:30:00Z",
+    "processingTime": 1247.5,
+    "wordCount": 156
+  }
+}
+```
+
+## 🔌 Platform Integration
+
+### Google Forms Integration
+
+1. Open Google Forms → Script Editor
+2. Paste the integration code from the Platform Integration tab
+3. Set up form submission trigger
+4. Configure teacher email alerts
+
+### Browser Extension
+
+1. Load the extension from `browser-extension/` folder
+2. Enable for testing websites
+3. Real-time detection on any form submission
+4. Visual indicators and alerts
+
+### Webhook Integration
+
+Integrate with any LMS using webhooks:
+
+```javascript
+const response = await fetch('http://localhost:3001/api/v1/analyze', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    text: studentResponse,
+    studentId: 'student123',
+    questionId: 'q1'
+  })
+});
+```
+
 ## Features
 
+### 🎓 Academic AI Detection
+- **Platform-Agnostic Test Detection** - Works with Google Forms, Moodle, Canvas, any LMS
+- **Advanced NLP Analysis** - Multi-layer linguistic, structural, semantic, and behavioral analysis
+- **Real-Time Alerts** - Instant notifications for suspicious AI-generated responses
+- **Comprehensive Reporting** - Detailed analytics with PDF export capabilities
+- **Browser Extension** - Real-time detection for any web-based testing platform
+- **Public API** - RESTful endpoint for custom integrations
+
+### 🔍 Media Detection
 - Real-time deepfake detection for video and audio using AI models
 - Video detection using MesoNet architecture
 - Audio detection using CNN-based classifier
@@ -72,6 +172,12 @@ npm run dev:server
 - Live monitoring of media streams
 - Detection history tracking
 - Suspicious content flagging
+
+### ⚡ System Features
+- Performance monitoring and system optimization
+- Enhanced drag-and-drop file upload
+- Comprehensive error handling and recovery
+- Platform integration tools and documentation
 
 ## Troubleshooting
 

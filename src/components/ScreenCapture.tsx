@@ -40,12 +40,18 @@ const ScreenCapture = ({ onDataAvailable, isActive }: ScreenCaptureProps) => {
       streamRef.current = stream;
       console.log('Screen capture stream obtained successfully');
       
-      // Check MediaRecorder support
+      // Check MediaRecorder support with comprehensive fallback
       let mimeType = 'video/webm;codecs=vp9';
       if (!MediaRecorder.isTypeSupported(mimeType)) {
         mimeType = 'video/webm;codecs=vp8';
         if (!MediaRecorder.isTypeSupported(mimeType)) {
           mimeType = 'video/webm';
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = 'video/mp4';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+              throw new Error('No supported video format available');
+            }
+          }
         }
       }
       
