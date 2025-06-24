@@ -13,6 +13,9 @@ COPY server/requirements.txt ./server/
 # Install Node.js dependencies
 RUN npm install
 
+# Rebuild bcrypt to ensure native bindings are correctly compiled
+RUN npm rebuild bcrypt
+
 # Install Python dependencies
 RUN pip3 install -r server/requirements.txt
 
@@ -33,4 +36,4 @@ ENV NODE_ENV=production
 ENV PORT=3001
 
 # Start the application
-CMD [\"npm\", \"start\"]
+CMD ["npm", "start"]
