@@ -9,6 +9,9 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+let detectionHistory=[];
+let suspiciousSegments = [];
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -744,7 +747,7 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       suspiciousSegments.push(suspiciousData);
       console.log(`[ALERT] Suspicious ${mediaType} detected - Trust: ${suspiciousData.score}%`);
     }
-    
+
     // Maintain history limit
     if (detectionHistory.length > 100) {
       detectionHistory = detectionHistory.slice(-100);
