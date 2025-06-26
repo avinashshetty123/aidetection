@@ -218,101 +218,76 @@ function runPythonInference(filePath, mediaType) {
     if (!fs.existsSync(filePath)) {
       return reject(new Error(`File not found: ${filePath}`));
     }
-    
+
     const pythonScript = path.join(__dirname, 'detect.py');
     if (!fs.existsSync(pythonScript)) {
       return reject(new Error('Python detection script not found'));
     }
-    
+
     const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
-    console.log(`Executing: ${pythonCommand} ${pythonScript} ${filePath} ${mediaType}`);
-    
     const py = spawn(pythonCommand, [pythonScript, filePath, mediaType], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, PYTHONUNBUFFERED: '1' }
     });
-    
+
     let output = '';
     let error = '';
-    let isResolved = false;
-    
-    py.stdout.on('data', (data) => {
-      output += data.toString();
-    });
-    
+    let finished = false;
+
+    function done(err, result) {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
+      if (err) reject(err);
+      else resolve(result);
+      // Defensive: kill the process if still running
+      if (!py.killed) {
+        try { py.kill('SIGKILL'); } catch {}
+      }
+    }
+
+    py.stdout.on('data', (data) => { output += data.toString(); });
     py.stderr.on('data', (data) => {
       const errorText = data.toString();
       error += errorText;
-      // Only log actual errors, not warnings or info
       if (errorText.toLowerCase().includes('error') || errorText.toLowerCase().includes('exception')) {
         console.error(`Python error: ${errorText.trim()}`);
       }
     });
-    
+
     py.on('close', (code) => {
-      if (isResolved) return;
-      isResolved = true;
-      
+      if (finished) return;
       if (code === 0) {
         try {
           const trimmedOutput = output.trim();
-          if (!trimmedOutput) {
-            return reject(new Error('Python script produced no output'));
-          }
-          
+          if (!trimmedOutput) return done(new Error('Python script produced no output'));
           const result = JSON.parse(trimmedOutput);
-          
-          // Validate result structure
           if (typeof result.trustScore !== 'number' || typeof result.suspicious !== 'boolean') {
-            return reject(new Error('Invalid Python output format'));
+            return done(new Error('Invalid Python output format'));
           }
-          
-          console.log(`Python inference successful: Trust=${Math.round(result.trustScore * 100)}%, Suspicious=${result.suspicious}`);
-          resolve(result);
+          done(null, result);
         } catch (e) {
           console.error('Failed to parse Python output:', e.message);
-          console.error('Raw output:', output);
-          reject(new Error(`Failed to parse Python output: ${e.message}`));
+          done(new Error(`Failed to parse Python output: ${e.message}`));
         }
       } else {
         const errorMsg = error.trim() || `Python script exited with code ${code}`;
         console.error(`Python script failed with code ${code}:`, errorMsg);
-        reject(new Error(`Python script failed: ${errorMsg}`));
+        done(new Error(`Python script failed: ${errorMsg}`));
       }
     });
-    
+
     py.on('error', (err) => {
-      if (isResolved) return;
-      isResolved = true;
+      if (finished) return;
       console.error('Failed to start Python process:', err.message);
-      reject(new Error(`Failed to start Python process: ${err.message}`));
+      done(new Error(`Failed to start Python process: ${err.message}`));
     });
-    
-    // Timeout with cleanup
+
     const timeout = setTimeout(() => {
-      if (isResolved) return;
-      isResolved = true;
-      
+      if (finished) return;
       console.warn(`Python inference timeout for ${mediaType} file`);
-      
-      try {
-        py.kill('SIGTERM');
-        setTimeout(() => {
-          if (!py.killed) {
-            py.kill('SIGKILL');
-          }
-        }, 5000);
-      } catch (e) {
-        console.warn('Error killing Python process:', e.message);
-      }
-      
-      reject(new Error('Python inference timeout - processing took too long'));
-    }, 60000); // Increased to 60 seconds
-    
-    // Clean up timeout if process completes
-    py.on('close', () => {
-      clearTimeout(timeout);
-    });
+      done(new Error('Python inference timeout - processing took too long'));
+    }, 60000);
   });
 }
 
