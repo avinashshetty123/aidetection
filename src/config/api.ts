@@ -1,5 +1,5 @@
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://satisfied-unity.up.railway.app';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://aidetection-production.up.railway.app';
 
 export const API_ENDPOINTS = {
   HEALTH: `${API_BASE_URL}/api/health`,
