@@ -20,6 +20,9 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key';
 
+// Trust the first proxy (needed for Railway and other cloud platforms)
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 
@@ -807,12 +810,13 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       errorMessage = 'Detection model not available';
     }
     
+    if (res.headersSent) return;
     res.status(statusCode).json({ 
       error: errorMessage,
       details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       trustScore: 0.5,
       suspicious: false,
-      mediaType: req.file?.mimetype.includes('video') ? 'video' : 'audio',
+      mediaType: req.file?.mimetype && req.file.mimetype.includes('video') ? 'video' : 'audio',
       confidence: 0.5,
       processingTime,
       model: 'Error Handler'
