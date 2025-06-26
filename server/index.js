@@ -657,29 +657,29 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
   const startTime = Date.now();
   let filePath = null;
   let responded = false;
+  function safeRespond(fn) {
+    if (!responded && !res.headersSent) {
+      responded = true;
+      fn();
+    }
+  }
   try {
     if (!req.file) {
-      if (!responded && !res.headersSent) {
-        responded = true;
-        return res.status(400).json({ 
-          error: 'No media file provided',
-          trustScore: 0.5,
-          suspicious: false,
-          confidence: 0.5,
-          processingTime: Date.now() - startTime
-        });
-      }
+      return safeRespond(() => res.status(400).json({ 
+        error: 'No media file provided',
+        trustScore: 0.5,
+        suspicious: false,
+        confidence: 0.5,
+        processingTime: Date.now() - startTime
+      }));
     }
     filePath = req.file.path;
     filesBeingProcessed.add(filePath);
     const mediaType = req.file.mimetype.includes('video') ? 'video' : 'audio';
-    const fileSize = (req.file.size / 1024 / 1024).toFixed(2);
-    console.log(`[${new Date().toISOString()}] Processing ${mediaType} file: ${path.basename(filePath)} (${fileSize} MB)`);
     if (req.file.size > 50 * 1024 * 1024) {
       throw new Error('File too large. Maximum size is 50MB.');
     }
     if (!isRecording) {
-      console.log('Recording disabled, skipping detection');
       try {
         if (fs.existsSync(filePath)) {
           fs.unlinkSync(filePath);
@@ -687,27 +687,27 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       } catch (e) {
         console.warn('Failed to delete file:', e.message);
       }
-      if (!responded && !res.headersSent) {
-        responded = true;
-        return res.json({
-          trustScore: 0.8,
-          suspicious: false,
-          mediaType,
-          confidence: 0.9,
-          processingTime: Date.now() - startTime,
-          skipped: true,
-          model: 'Skipped'
-        });
-      }
+      return safeRespond(() => res.json({
+        trustScore: 0.8,
+        suspicious: false,
+        mediaType,
+        confidence: 0.9,
+        processingTime: Date.now() - startTime,
+        skipped: true,
+        model: 'Skipped'
+      }));
     }
-    const result = await runPythonInference(filePath, mediaType);
+    let result;
+    try {
+      result = await runPythonInference(filePath, mediaType);
+    } catch (error) {
+      throw error;
+    }
     const processingTime = Date.now() - startTime;
-    console.log(`[${new Date().toISOString()}] Detection completed in ${processingTime}ms - Trust: ${Math.round(result.trustScore * 100)}%, Suspicious: ${result.suspicious}`);
     if (!result.suspicious) {
       try {
         if (fs.existsSync(filePath)) {
           fs.unlinkSync(filePath);
-          console.log(`Cleaned up non-suspicious file: ${path.basename(filePath)}`);
         }
       } catch (e) {
         console.warn('Failed to delete non-suspicious file:', e.message);
@@ -734,7 +734,6 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
         fileSize: req.file.size
       };
       suspiciousSegments.push(suspiciousData);
-      console.log(`[ALERT] Suspicious ${mediaType} detected - Trust: ${suspiciousData.score}%`);
     }
     if (detectionHistory.length > 100) {
       detectionHistory = detectionHistory.slice(-100);
@@ -745,7 +744,6 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
         if (segment.filePath && fs.existsSync(segment.filePath)) {
           try {
             fs.unlinkSync(segment.filePath);
-            console.log(`Cleaned up old suspicious file: ${path.basename(segment.filePath)}`);
           } catch (e) {
             console.warn('Failed to delete old suspicious file:', e.message);
           }
@@ -753,18 +751,15 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       });
       suspiciousSegments = suspiciousSegments.slice(-50);
     }
-    if (!responded && !res.headersSent) {
-      responded = true;
-      return res.json({
-        trustScore: result.trustScore,
-        suspicious: result.suspicious,
-        mediaType: result.mediaType || mediaType,
-        confidence: result.confidence || 0.85,
-        processingTime,
-        model: result.model || 'AI Detection',
-        features: result.features || {}
-      });
-    }
+    return safeRespond(() => res.json({
+      trustScore: result.trustScore,
+      suspicious: result.suspicious,
+      mediaType: result.mediaType || mediaType,
+      confidence: result.confidence || 0.85,
+      processingTime,
+      model: result.model || 'AI Detection',
+      features: result.features || {}
+    }));
   } catch (error) {
     const processingTime = Date.now() - startTime;
     console.error(`[ERROR] Detection failed after ${processingTime}ms:`, error.message);
@@ -772,7 +767,6 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       try {
         if (fs.existsSync(filePath)) {
           fs.unlinkSync(filePath);
-          console.log(`Cleaned up file after error: ${path.basename(filePath)}`);
         }
       } catch (e) {
         console.warn('Failed to delete file on error:', e.message);
@@ -790,19 +784,16 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       statusCode = 404;
       errorMessage = 'Detection model not available';
     }
-    if (!responded && !res.headersSent) {
-      responded = true;
-      res.status(statusCode).json({ 
-        error: errorMessage,
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined,
-        trustScore: 0.5,
-        suspicious: false,
-        mediaType: req.file?.mimetype && req.file.mimetype.includes('video') ? 'video' : 'audio',
-        confidence: 0.5,
-        processingTime,
-        model: 'Error Handler'
-      });
-    }
+    safeRespond(() => res.status(statusCode).json({ 
+      error: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      trustScore: 0.5,
+      suspicious: false,
+      mediaType: req.file?.mimetype && req.file.mimetype.includes('video') ? 'video' : 'audio',
+      confidence: 0.5,
+      processingTime,
+      model: 'Error Handler'
+    }));
   } finally {
     if (filePath) filesBeingProcessed.delete(filePath);
   }
