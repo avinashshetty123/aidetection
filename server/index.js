@@ -12,37 +12,23 @@ import helmet from 'helmet';
 let detectionHistory=[];
 let suspiciousSegments = [];
 
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../dist')));
 
-  app.get('*', (req, res) => {
-    // Only serve index.html for non-API routes
-    if (!req.path.startsWith('/api/')) {
-      res.sendFile(path.join(__dirname, '../dist/index.html'));
-    } else {
-      res.status(404).json({ error: 'API route not found' });
-    }
-  });
-}
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key';
 
 // Security middleware
 app.use(helmet());
-if(process.env.NODE_ENV==='test')
-{
 
-  app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    credentials: true
-  }));
-}
-  app.use(express.json({ limit: '10mb' }));
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true
+}));
+
+app.use(express.json({ limit: '10mb' }));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -105,6 +91,9 @@ const upload = multer({
 // Store detection history per user (only metadata, not files)
 const userDetectionHistory = new Map(); // userId -> detection history
 const userSuspiciousSegments = new Map(); // userId -> suspicious segments
+
+// Add this at the top, after imports
+const filesBeingProcessed = new Set();
 
 // Auth routes
 app.post('/api/auth/register', async (req, res) => {
@@ -177,40 +166,31 @@ app.post('/api/auth/login', async (req, res) => {
 // Flag to control recording
 let isRecording = true;
 
-// Cleanup function to remove temporary files
+// Update cleanupTempFiles to skip files being processed
 const cleanupTempFiles = () => {
   console.log('Running temp file cleanup');
-  
   if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
     return;
   }
-  
   fs.readdir(tempDir, (err, files) => {
     if (err) return console.error('Error reading temp directory:', err);
-    
     console.log(`Found ${files.length} files in temp directory`);
-    
-    const suspiciousFilePaths = [];
     let deletedCount = 0;
     let skippedCount = 0;
-    
     const deletePromises = files.map(file => {
       return new Promise(resolve => {
         const filePath = path.join(tempDir, file);
-        
-        if (suspiciousFilePaths.includes(filePath)) {
+        if (filesBeingProcessed.has(filePath)) {
           skippedCount++;
           resolve();
           return;
         }
-        
         fs.access(filePath, fs.constants.F_OK, (accessErr) => {
           if (accessErr) {
             resolve();
             return;
           }
-          
           fs.unlink(filePath, (unlinkErr) => {
             if (unlinkErr) {
               console.warn(`Failed to delete temp file: ${filePath}`, unlinkErr);
@@ -222,9 +202,8 @@ const cleanupTempFiles = () => {
         });
       });
     });
-    
     Promise.all(deletePromises).then(() => {
-      console.log(`Cleanup complete: ${deletedCount} files deleted, ${skippedCount} files kept`);
+      console.log(`Cleanup complete: ${deletedCount} files deleted, ${skippedCount} files kept (in use)`);
     });
   });
 };
@@ -690,6 +669,7 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
     }
 
     filePath = req.file.path;
+    filesBeingProcessed.add(filePath);
     const mediaType = req.file.mimetype.includes('video') ? 'video' : 'audio';
     const fileSize = (req.file.size / 1024 / 1024).toFixed(2);
     
@@ -837,6 +817,8 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       processingTime,
       model: 'Error Handler'
     });
+  } finally {
+    if (filePath) filesBeingProcessed.delete(filePath);
   }
 });
 

@@ -662,4 +662,5 @@ function App() {
   );
 }
 
+// Add the following after the main App component, before export
 export default App;
