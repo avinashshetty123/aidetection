@@ -171,14 +171,12 @@ let isRecording = true;
 
 // Update cleanupTempFiles to skip files being processed
 const cleanupTempFiles = () => {
-  console.log('Running temp file cleanup');
   if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
     return;
   }
   fs.readdir(tempDir, (err, files) => {
     if (err) return console.error('Error reading temp directory:', err);
-    console.log(`Found ${files.length} files in temp directory`);
     let deletedCount = 0;
     let skippedCount = 0;
     const deletePromises = files.map(file => {
@@ -206,7 +204,6 @@ const cleanupTempFiles = () => {
       });
     });
     Promise.all(deletePromises).then(() => {
-      console.log(`Cleanup complete: ${deletedCount} files deleted, ${skippedCount} files kept (in use)`);
     });
   });
 };
@@ -659,30 +656,28 @@ app.post('/api/detect-text', async (req, res) => {
 app.post('/api/detect', upload.single('media'), async (req, res) => {
   const startTime = Date.now();
   let filePath = null;
-  
+  let responded = false;
   try {
     if (!req.file) {
-      return res.status(400).json({ 
-        error: 'No media file provided',
-        trustScore: 0.5,
-        suspicious: false,
-        confidence: 0.5,
-        processingTime: Date.now() - startTime
-      });
+      if (!responded && !res.headersSent) {
+        responded = true;
+        return res.status(400).json({ 
+          error: 'No media file provided',
+          trustScore: 0.5,
+          suspicious: false,
+          confidence: 0.5,
+          processingTime: Date.now() - startTime
+        });
+      }
     }
-
     filePath = req.file.path;
     filesBeingProcessed.add(filePath);
     const mediaType = req.file.mimetype.includes('video') ? 'video' : 'audio';
     const fileSize = (req.file.size / 1024 / 1024).toFixed(2);
-    
     console.log(`[${new Date().toISOString()}] Processing ${mediaType} file: ${path.basename(filePath)} (${fileSize} MB)`);
-
-    // Validate file size (max 50MB for performance)
     if (req.file.size > 50 * 1024 * 1024) {
       throw new Error('File too large. Maximum size is 50MB.');
     }
-
     if (!isRecording) {
       console.log('Recording disabled, skipping detection');
       try {
@@ -692,23 +687,22 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       } catch (e) {
         console.warn('Failed to delete file:', e.message);
       }
-      return res.json({
-        trustScore: 0.8,
-        suspicious: false,
-        mediaType,
-        confidence: 0.9,
-        processingTime: Date.now() - startTime,
-        skipped: true,
-        model: 'Skipped'
-      });
+      if (!responded && !res.headersSent) {
+        responded = true;
+        return res.json({
+          trustScore: 0.8,
+          suspicious: false,
+          mediaType,
+          confidence: 0.9,
+          processingTime: Date.now() - startTime,
+          skipped: true,
+          model: 'Skipped'
+        });
+      }
     }
-    
     const result = await runPythonInference(filePath, mediaType);
     const processingTime = Date.now() - startTime;
-    
     console.log(`[${new Date().toISOString()}] Detection completed in ${processingTime}ms - Trust: ${Math.round(result.trustScore * 100)}%, Suspicious: ${result.suspicious}`);
-    
-    // Clean up non-suspicious files immediately
     if (!result.suspicious) {
       try {
         if (fs.existsSync(filePath)) {
@@ -719,7 +713,6 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
         console.warn('Failed to delete non-suspicious file:', e.message);
       }
     }
-    
     const detectionData = {
       ...result,
       timestamp: Date.now(),
@@ -727,9 +720,7 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       filePath: result.suspicious ? filePath : null,
       processingTime
     };
-    
     detectionHistory.push(detectionData);
-    
     if (result.suspicious) {
       const suspiciousData = {
         id: Date.now(),
@@ -742,20 +733,14 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
         features: result.features || {},
         fileSize: req.file.size
       };
-      
       suspiciousSegments.push(suspiciousData);
       console.log(`[ALERT] Suspicious ${mediaType} detected - Trust: ${suspiciousData.score}%`);
     }
-
-    // Maintain history limit
     if (detectionHistory.length > 100) {
       detectionHistory = detectionHistory.slice(-100);
     }
-    
-    // Maintain suspicious segments limit
     if (suspiciousSegments.length > 50) {
       const oldSegments = suspiciousSegments.slice(0, -50);
-      // Clean up old suspicious files
       oldSegments.forEach(segment => {
         if (segment.filePath && fs.existsSync(segment.filePath)) {
           try {
@@ -768,22 +753,21 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       });
       suspiciousSegments = suspiciousSegments.slice(-50);
     }
-    
-    res.json({
-      trustScore: result.trustScore,
-      suspicious: result.suspicious,
-      mediaType: result.mediaType || mediaType,
-      confidence: result.confidence || 0.85,
-      processingTime,
-      model: result.model || 'AI Detection',
-      features: result.features || {}
-    });
-    
+    if (!responded && !res.headersSent) {
+      responded = true;
+      return res.json({
+        trustScore: result.trustScore,
+        suspicious: result.suspicious,
+        mediaType: result.mediaType || mediaType,
+        confidence: result.confidence || 0.85,
+        processingTime,
+        model: result.model || 'AI Detection',
+        features: result.features || {}
+      });
+    }
   } catch (error) {
     const processingTime = Date.now() - startTime;
     console.error(`[ERROR] Detection failed after ${processingTime}ms:`, error.message);
-    
-    // Clean up file on error
     if (filePath) {
       try {
         if (fs.existsSync(filePath)) {
@@ -794,11 +778,8 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
         console.warn('Failed to delete file on error:', e.message);
       }
     }
-    
-    // Determine appropriate error response
     let statusCode = 500;
     let errorMessage = 'Detection failed';
-    
     if (error.message.includes('File too large')) {
       statusCode = 413;
       errorMessage = error.message;
@@ -809,18 +790,19 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       statusCode = 404;
       errorMessage = 'Detection model not available';
     }
-    
-    if (res.headersSent) return;
-    res.status(statusCode).json({ 
-      error: errorMessage,
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
-      trustScore: 0.5,
-      suspicious: false,
-      mediaType: req.file?.mimetype && req.file.mimetype.includes('video') ? 'video' : 'audio',
-      confidence: 0.5,
-      processingTime,
-      model: 'Error Handler'
-    });
+    if (!responded && !res.headersSent) {
+      responded = true;
+      res.status(statusCode).json({ 
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        trustScore: 0.5,
+        suspicious: false,
+        mediaType: req.file?.mimetype && req.file.mimetype.includes('video') ? 'video' : 'audio',
+        confidence: 0.5,
+        processingTime,
+        model: 'Error Handler'
+      });
+    }
   } finally {
     if (filePath) filesBeingProcessed.delete(filePath);
   }
