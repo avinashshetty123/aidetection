@@ -640,13 +640,14 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
   }
   try {
     if (!req.file) {
-      return safeRespond(() => res.status(400).json({ 
+      safeRespond(() => res.status(400).json({ 
         error: 'No media file provided',
         trustScore: 0.5,
         suspicious: false,
         confidence: 0.5,
         processingTime: Date.now() - startTime
       }));
+      return;
     }
     filePath = req.file.path;
     filesBeingProcessed.add(filePath);
@@ -662,7 +663,7 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       } catch (e) {
         console.warn('Failed to delete file:', e.message);
       }
-      return safeRespond(() => res.json({
+      safeRespond(() => res.json({
         trustScore: 0.8,
         suspicious: false,
         mediaType,
@@ -671,6 +672,7 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
         skipped: true,
         model: 'Skipped'
       }));
+      return;
     }
     let result;
     try {
@@ -726,7 +728,7 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       });
       suspiciousSegments = suspiciousSegments.slice(-50);
     }
-    return safeRespond(() => res.json({
+    safeRespond(() => res.json({
       trustScore: result.trustScore,
       suspicious: result.suspicious,
       mediaType: result.mediaType || mediaType,
@@ -735,6 +737,7 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       model: result.model || 'AI Detection',
       features: result.features || {}
     }));
+    return;
   } catch (error) {
     const processingTime = Date.now() - startTime;
     console.error(`[ERROR] Detection failed after ${processingTime}ms:`, error.message);
@@ -769,6 +772,7 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       processingTime,
       model: 'Error Handler'
     }));
+    return;
   } finally {
     if (filePath) filesBeingProcessed.delete(filePath);
   }
