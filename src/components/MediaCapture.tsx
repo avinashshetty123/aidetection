@@ -1,4 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Mic, MicOff, AlertTriangle } from 'lucide-react';
+import { API_ENDPOINTS } from '../config/api';
 
 interface MediaCaptureProps {
   onDetectionResult: (result: any) => void;
@@ -78,7 +80,7 @@ const MediaCapture = ({ onDetectionResult, onProcessingChange }: MediaCapturePro
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 30000);
             
-            const response = await fetch('http://localhost:3001/api/detect', {
+            const response = await fetch(API_ENDPOINTS.DETECT, {
               method: 'POST',
               body: formData,
               signal: controller.signal

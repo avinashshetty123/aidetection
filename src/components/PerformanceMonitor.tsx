@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Activity, Cpu, HardDrive, Wifi } from 'lucide-react';
+import { API_ENDPOINTS } from '../config/api';
 
 interface PerformanceData {
   cpuUsage: number;
@@ -32,7 +33,7 @@ const PerformanceMonitor = ({ isActive, lastProcessingTime }: PerformanceMonitor
       try {
         // Simulate network latency check
         const startTime = Date.now();
-        const response = await fetch('http://localhost:3001/api/health');
+        const response = await fetch(API_ENDPOINTS.HEALTH);
         const networkLatency = Date.now() - startTime;
 
         // Simulate CPU and memory usage (in a real app, use performance APIs)

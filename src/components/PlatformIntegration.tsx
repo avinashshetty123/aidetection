@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Globe, Code, Webhook, Mail, Download, Copy, CheckCircle } from 'lucide-react';
+import { API_ENDPOINTS } from '../config/api';
 
 const PlatformIntegration = () => {
   const [copied, setCopied] = useState<string>('');
@@ -10,7 +11,7 @@ const PlatformIntegration = () => {
     setTimeout(() => setCopied(''), 2000);
   };
 
-  const apiEndpoint = 'http://localhost:3001/api/v1/analyze';
+  const apiEndpoint = API_ENDPOINTS.V1_ANALYZE;
   
   const googleAppsScript = `function onFormSubmit(e) {
   const responses = e.response.getItemResponses();

@@ -878,6 +878,10 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+app.get('/test', (req, res) => {
+  res.json({ status: 'ok', message: 'Test route working' });
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 TRUVOICE Backend running on http://localhost:${PORT}`);
   console.log(`📁 Temp directory: ${tempDir}`);

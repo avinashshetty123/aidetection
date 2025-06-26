@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { FileText, AlertTriangle, CheckCircle, Clock, Brain, Users, BookOpen } from 'lucide-react';
+import React, { useState } from 'react';
+import { FileText, AlertTriangle, CheckCircle, Clock, Brain, Users, BookOpen, Shield, GraduationCap } from 'lucide-react';
+import { API_ENDPOINTS } from '../config/api';
 
 interface DetectionResult {
   isAiGenerated: boolean;
@@ -39,7 +40,7 @@ const TestResponseDetector = () => {
     setError('');
 
     try {
-      const apiResponse = await fetch('http://localhost:3001/api/detect-test-response', {
+      const apiResponse = await fetch(API_ENDPOINTS.DETECT_TEST_RESPONSE, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

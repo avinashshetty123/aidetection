@@ -14,6 +14,7 @@ import PerformanceMonitor from './components/PerformanceMonitor';
 import TestResponseDetector from './components/TestResponseDetector';
 import PlatformIntegration from './components/PlatformIntegration';
 import ReportDashboard from './components/ReportDashboard';
+import { API_ENDPOINTS } from './config/api';
 
 interface DetectionData {
   timestamp: number;
@@ -58,7 +59,7 @@ function App() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
         
-        const response = await fetch('http://localhost:3001/api/health', {
+        const response = await fetch(API_ENDPOINTS.HEALTH, {
           signal: controller.signal
         });
         
@@ -234,7 +235,7 @@ function App() {
       });
       
       try {
-        await fetch('http://localhost:3001/api/toggle-recording', {
+        await fetch(API_ENDPOINTS.TOGGLE_RECORDING, {
           method: 'POST'
         });
         
@@ -283,7 +284,7 @@ function App() {
 
   const clearSuspiciousSegments = async () => {
     try {
-      await fetch('http://localhost:3001/api/suspicious', { method: 'DELETE' });
+      await fetch(API_ENDPOINTS.SUSPICIOUS, { method: 'DELETE' });
       setSuspiciousSegments([]);
     } catch (error) {
       console.error('Failed to clear suspicious segments:', error);
@@ -526,7 +527,7 @@ function App() {
                   const formData = new FormData();
                   formData.append('media', blob, `screen_${Date.now()}.webm`);
                   
-                  fetch('http://localhost:3001/api/detect', {
+                  fetch(API_ENDPOINTS.DETECT, {
                     method: 'POST',
                     body: formData
                   })

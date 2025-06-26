@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { Upload, Video, AlertTriangle, CheckCircle, Clock, Zap, FileVideo, X } from 'lucide-react';
+import { API_ENDPOINTS } from '../config/api';
 
 interface VideoAnalyzerProps {
   onAnalysisComplete?: (result: any) => void;
@@ -107,7 +108,7 @@ const VideoAnalyzer = ({ onAnalysisComplete }: VideoAnalyzerProps) => {
           reject(new Error('Request timeout - file may be too large'));
         });
 
-        xhr.open('POST', 'http://localhost:3001/api/detect');
+        xhr.open('POST', API_ENDPOINTS.DETECT);
         xhr.timeout = 120000; // 2 minute timeout
         xhr.send(formData);
       });

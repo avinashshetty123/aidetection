@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Shield, User, Lock, Mail } from 'lucide-react';
+import { API_ENDPOINTS } from '../config/api';
 
 interface AuthProps {
   onLogin: (token: string, user: any) => void;
@@ -21,8 +22,8 @@ const Auth = ({ onLogin }: AuthProps) => {
     setError('');
 
     try {
-      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
-      const response = await fetch(`http://localhost:3001${endpoint}`, {
+      const endpoint = isLogin ? API_ENDPOINTS.AUTH.LOGIN : API_ENDPOINTS.AUTH.REGISTER;
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
