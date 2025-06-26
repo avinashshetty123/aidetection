@@ -846,3 +846,10 @@ app.listen(PORT, () => {
   console.log(`🐍 Python detection system ready`);
   console.log(`📊 Enhanced AI detection models loaded`);
 });
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception thrown:', err);
+});
