@@ -882,6 +882,11 @@ app.get('/test', (req, res) => {
   res.json({ status: 'ok', message: 'Test route working' });
 });
 
+// Add this before app.listen
+app.get('/', (req, res) => {
+  res.send('Backend is running!');
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 TRUVOICE Backend running on http://localhost:${PORT}`);
   console.log(`📁 Temp directory: ${tempDir}`);
