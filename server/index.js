@@ -228,7 +228,8 @@ function runPythonInference(filePath, mediaType) {
       return reject(new Error('Python detection script not found'));
     }
 
-    const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
+    // Fix Python command to work on Railway (use 'python' instead of 'python3')
+    const pythonCommand = 'python';
     const py = spawn(pythonCommand, [pythonScript, filePath, mediaType], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, PYTHONUNBUFFERED: '1' }
@@ -368,33 +369,57 @@ app.get('/api/recording-state', (req, res) => {
 // Public API v1 for platform-agnostic AI detection (protected)
 app.post('/api/v1/analyze', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
+  let responded = false;
+  
+  function safeRespond(fn) {
+    if (!responded && !res.headersSent) {
+      responded = true;
+      fn();
+    }
+  }
+  
   try {
     const { text, studentId, questionId } = req.body;
     
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
-      return res.status(400).json({ 
+      return safeRespond(() => res.status(400).json({ 
         error: 'No text provided',
         aiScore: 0,
         isSuspectedAI: false,
         message: 'Invalid input'
-      });
+      }));
     }
 
     if (text.trim().length < 20) {
-      return res.status(400).json({ 
+      return safeRespond(() => res.status(400).json({ 
         error: 'Text too short for analysis (minimum 20 characters)',
         aiScore: 0,
         isSuspectedAI: false,
         message: 'Text too short'
-      });
+      }));
     }
 
     console.log(`[API v1] Analyzing text for student: ${studentId || 'unknown'}, question: ${questionId || 'unknown'}`);
     
     const pythonScript = path.join(__dirname, 'ai_model.py');
-    const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
+    // Fix Python command to work on Railway (use 'python' instead of 'python3')
+    const pythonCommand = 'python';
     
     const result = await new Promise((resolve, reject) => {
+      let finished = false;
+      
+      function done(err, result) {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timeout);
+        if (err) reject(err);
+        else resolve(result);
+        // Defensive: kill the process if still running
+        if (!py.killed) {
+          try { py.kill('SIGKILL'); } catch {}
+        }
+      }
+      
       const py = spawn(pythonCommand, [pythonScript, text, studentId || '', questionId || '']);
       
       let output = '';
@@ -409,21 +434,29 @@ app.post('/api/v1/analyze', authenticateToken, async (req, res) => {
       });
       
       py.on('close', (code) => {
+        if (finished) return;
         if (code === 0) {
           try {
             const result = JSON.parse(output.trim());
-            resolve(result);
+            done(null, result);
           } catch (e) {
-            reject(new Error('Failed to parse detection result'));
+            done(new Error('Failed to parse detection result'));
           }
         } else {
-          reject(new Error(`Detection failed: ${error}`));
+          done(new Error(`Detection failed: ${error}`));
         }
       });
       
-      setTimeout(() => {
-        py.kill();
-        reject(new Error('Detection timeout'));
+      py.on('error', (err) => {
+        if (finished) return;
+        console.error('Failed to start Python process:', err.message);
+        done(new Error(`Failed to start Python process: ${err.message}`));
+      });
+      
+      const timeout = setTimeout(() => {
+        if (finished) return;
+        console.warn('Python analysis timeout');
+        done(new Error('Detection timeout'));
       }, 30000);
     });
     
@@ -463,18 +496,18 @@ app.post('/api/v1/analyze', authenticateToken, async (req, res) => {
       });
     }
     
-    res.json(result);
+    safeRespond(() => res.json(result));
     
   } catch (error) {
     console.error('API v1 analysis error:', error);
     
-    res.status(500).json({ 
+    safeRespond(() => res.status(500).json({ 
       error: 'Analysis failed',
       aiScore: 0.5,
       isSuspectedAI: false,
       message: 'Server error occurred',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    }));
   }
 });
 
