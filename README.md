@@ -72,6 +72,7 @@ If you see a blue screen instead of the application:
 - **CORS Errors**: Backend CORS configuration should allow your frontend domain
 - **API Timeout**: Backend health check might be timing out
 - **Build Errors**: Check Netlify build logs for any compilation errors
+- **Slice Errors**: Fixed undefined array slice operations with proper null checks
 
 ### Local Development
 

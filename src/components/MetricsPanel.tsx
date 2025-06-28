@@ -10,13 +10,18 @@ interface DetectionData {
 }
 
 interface MetricsPanelProps {
-  history: DetectionData[];
+  detectionHistory: DetectionData[];
+  currentData: DetectionData;
   isActive: boolean;
 }
 
-const MetricsPanel: React.FC<MetricsPanelProps> = ({ history, isActive }) => {
+const MetricsPanel: React.FC<MetricsPanelProps> = ({ 
+  detectionHistory = [], 
+  currentData, 
+  isActive 
+}) => {
   const calculateStats = () => {
-    if (history.length === 0) {
+    if (detectionHistory.length === 0) {
       return {
         avgTrust: 0,
         totalAlerts: 0,
@@ -26,17 +31,17 @@ const MetricsPanel: React.FC<MetricsPanelProps> = ({ history, isActive }) => {
     }
 
     const avgTrust = Math.round(
-      history.reduce((sum, data) => sum + data.overallScore, 0) / history.length
+      detectionHistory.reduce((sum, data) => sum + data.overallScore, 0) / detectionHistory.length
     );
     
-    const totalAlerts = history.filter(data => data.alert).length;
+    const totalAlerts = detectionHistory.filter(data => data.alert).length;
     
-    const sessionDuration = history.length > 0 
-      ? (history[history.length - 1].timestamp - history[0].timestamp) / 1000
+    const sessionDuration = detectionHistory.length > 0 
+      ? (detectionHistory[detectionHistory.length - 1].timestamp - detectionHistory[0].timestamp) / 1000
       : 0;
     
-    const recentHistory = history.slice(-10);
-    const olderHistory = history.slice(-20, -10);
+    const recentHistory = (detectionHistory || []).slice(-10);
+    const olderHistory = (detectionHistory || []).slice(-20, -10);
     const recentAvg = recentHistory.length > 0 
       ? recentHistory.reduce((sum, data) => sum + data.overallScore, 0) / recentHistory.length 
       : 0;
@@ -58,16 +63,16 @@ const MetricsPanel: React.FC<MetricsPanelProps> = ({ history, isActive }) => {
   };
 
   const getDistribution = () => {
-    if (history.length === 0) return { high: 0, medium: 0, low: 0 };
+    if (detectionHistory.length === 0) return { high: 0, medium: 0, low: 0 };
     
-    const high = history.filter(d => d.overallScore >= 70).length;
-    const medium = history.filter(d => d.overallScore >= 40 && d.overallScore < 70).length;
-    const low = history.filter(d => d.overallScore < 40).length;
+    const high = detectionHistory.filter(d => d.overallScore >= 70).length;
+    const medium = detectionHistory.filter(d => d.overallScore >= 40 && d.overallScore < 70).length;
+    const low = detectionHistory.filter(d => d.overallScore < 40).length;
     
     return {
-      high: Math.round((high / history.length) * 100),
-      medium: Math.round((medium / history.length) * 100),
-      low: Math.round((low / history.length) * 100)
+      high: Math.round((high / detectionHistory.length) * 100),
+      medium: Math.round((medium / detectionHistory.length) * 100),
+      low: Math.round((low / detectionHistory.length) * 100)
     };
   };
 
@@ -82,11 +87,11 @@ const MetricsPanel: React.FC<MetricsPanelProps> = ({ history, isActive }) => {
             <h2 className="text-2xl font-bold">Detection Metrics</h2>
           </div>
           <div className="text-sm text-slate-400">
-            {history.length} data points analyzed
+            {detectionHistory.length} data points analyzed
           </div>
         </div>
 
-        {!isActive && history.length === 0 ? (
+        {!isActive && detectionHistory.length === 0 ? (
           <div className="flex items-center justify-center h-96 bg-slate-800 rounded-lg">
             <div className="text-center">
               <BarChart3 className="w-16 h-16 text-slate-600 mx-auto mb-4" />
@@ -224,11 +229,11 @@ const MetricsPanel: React.FC<MetricsPanelProps> = ({ history, isActive }) => {
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-sm text-slate-400">Video Frames Analyzed</span>
-                    <span className="text-sm text-slate-300">{Math.floor(history.length * 1.2)}</span>
+                    <span className="text-sm text-slate-300">{Math.floor(detectionHistory.length * 1.2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-slate-400">Audio Segments Processed</span>
-                    <span className="text-sm text-slate-300">{Math.floor(history.length * 0.8)}</span>
+                    <span className="text-sm text-slate-300">{Math.floor(detectionHistory.length * 0.8)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-slate-400">False Positive Rate</span>

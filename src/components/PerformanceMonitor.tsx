@@ -49,7 +49,7 @@ const PerformanceMonitor = ({ isActive, lastProcessingTime }: PerformanceMonitor
         };
 
         setCurrentStats(newStats);
-        setPerformanceData(prev => [...prev.slice(-19), newStats]); // Keep last 20 data points
+        setPerformanceData(prev => [...(prev || []).slice(-19), newStats]); // Keep last 20 data points
       } catch (error) {
         console.warn('Performance monitoring error:', error);
       }

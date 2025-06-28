@@ -195,11 +195,11 @@ function App() {
     };
     
     setCurrentData(newData);
-    setDetectionHistory(prev => [...prev.slice(-49), newData]);
+    setDetectionHistory(prev => [...(prev || []).slice(-49), newData]);
     
     // Add to suspicious segments if flagged
     if (result.suspicious) {
-      setSuspiciousSegments(prev => [...prev, {
+      setSuspiciousSegments(prev => [...(prev || []), {
         id: now,
         timestamp: now,
         type: result.mediaType,

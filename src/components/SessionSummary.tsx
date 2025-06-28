@@ -10,16 +10,23 @@ interface SessionData {
 }
 
 interface SessionSummaryProps {
-  isActive: boolean;
-  currentSession?: {
+  currentSession: {
     startTime: number;
     detectionCount: number;
     suspiciousCount: number;
     avgTrustScore: number;
-  };
+  } | null;
+  isActive?: boolean;
+  detectionHistory?: SessionData[];
+  suspiciousSegments?: number[];
 }
 
-const SessionSummary = ({ isActive, currentSession }: SessionSummaryProps) => {
+const SessionSummary: React.FC<SessionSummaryProps> = ({ 
+  currentSession, 
+  isActive = false,
+  detectionHistory = [], 
+  suspiciousSegments = [] 
+}) => {
   const [pastSessions, setPastSessions] = useState<SessionData[]>([]);
   
   // Load past sessions from localStorage on component mount
@@ -46,7 +53,7 @@ const SessionSummary = ({ isActive, currentSession }: SessionSummaryProps) => {
         overallVerdict: getVerdict(currentSession.avgTrustScore, currentSession.suspiciousCount / currentSession.detectionCount)
       };
       
-      const updatedSessions = [...pastSessions, newSession].slice(-10); // Keep last 10 sessions
+      const updatedSessions = [...(pastSessions || []), newSession].slice(-10); // Keep last 10 sessions
       setPastSessions(updatedSessions);
       localStorage.setItem('aiDetectionSessions', JSON.stringify(updatedSessions));
     }
@@ -131,7 +138,7 @@ const SessionSummary = ({ isActive, currentSession }: SessionSummaryProps) => {
       <h3 className="text-lg font-semibold mb-3">Past Sessions</h3>
       {pastSessions.length > 0 ? (
         <div className="space-y-3">
-          {pastSessions.slice().reverse().map((session, index) => (
+          {(pastSessions || []).slice().reverse().map((session, index) => (
             <div key={index} className="p-3 bg-slate-700 rounded-md">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm text-slate-400">
