@@ -1,10 +1,5 @@
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-    ? 'http://localhost:3001' 
-    : 'https://aidetection-production.up.railway.app');
-
-console.log('API Base URL:', API_BASE_URL);
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://aidetection-production.up.railway.app';
 
 export const API_ENDPOINTS = {
   HEALTH: `${API_BASE_URL}/api/health`,

@@ -12,7 +12,6 @@ import numpy as np
 from datetime import datetime
 from collections import Counter
 import math
-import random
 
 class RealAIDetector:
     def __init__(self):
@@ -240,145 +239,19 @@ class RealAIDetector:
             }
         }
 
-def analyze_text(text, student_id="", question_id=""):
-    """
-    Simple text analysis that works without external dependencies
-    This is a fallback when the full AI models aren't available
-    """
-    try:
-        # Basic text analysis
-        words = text.strip().split()
-        sentences = re.split(r'[.!?]+', text.strip())
-        sentences = [s.strip() for s in sentences if s.strip()]
-        
-        if not sentences:
-            return {
-                "aiScore": 0.5,
-                "isSuspectedAI": False,
-                "confidence": 0.5,
-                "riskLevel": "MEDIUM",
-                "message": "Text too short for analysis",
-                "studentId": student_id,
-                "questionId": question_id
-            }
-        
-        # Calculate basic metrics
-        word_count = len(words)
-        sentence_count = len(sentences)
-        avg_words_per_sentence = word_count / sentence_count if sentence_count > 0 else 0
-        
-        # AI detection patterns
-        ai_patterns = [
-            'furthermore', 'moreover', 'in conclusion', 'it is important to note',
-            'additionally', 'consequently', 'therefore', 'in summary',
-            'it should be noted', 'it is worth mentioning', 'as a result',
-            'on the other hand', 'in other words', 'for instance',
-            'to elaborate', 'in essence', 'fundamentally speaking'
-        ]
-        
-        # Count AI patterns
-        pattern_count = 0
-        detected_patterns = []
-        for pattern in ai_patterns:
-            if pattern.lower() in text.lower():
-                pattern_count += 1
-                detected_patterns.append(pattern)
-        
-        # Calculate AI score based on various factors
-        ai_score = 0.0
-        
-        # Pattern-based scoring
-        if pattern_count > 0:
-            ai_score += min(0.3, pattern_count * 0.1)
-        
-        # Sentence structure scoring
-        if 15 <= avg_words_per_sentence <= 25:
-            ai_score += 0.2
-        elif avg_words_per_sentence > 25:
-            ai_score += 0.3
-        
-        # Vocabulary diversity
-        unique_words = set(word.lower() for word in words)
-        vocabulary_diversity = len(unique_words) / word_count if word_count > 0 else 0
-        
-        if vocabulary_diversity < 0.4:
-            ai_score += 0.2
-        
-        # Personal language detection
-        personal_pronouns = re.findall(r'\b(i|me|my|mine|myself)\b', text.lower())
-        if not personal_pronouns and word_count > 50:
-            ai_score += 0.2
-        
-        # Add some randomness to simulate real detection
-        ai_score += random.uniform(-0.1, 0.1)
-        ai_score = max(0.0, min(1.0, ai_score))
-        
-        # Determine risk level
-        if ai_score > 0.7:
-            risk_level = "HIGH"
-        elif ai_score > 0.4:
-            risk_level = "MEDIUM"
-        else:
-            risk_level = "LOW"
-        
-        # Calculate confidence
-        confidence = 0.6 + abs(ai_score - 0.5) * 0.8
-        confidence = max(0.5, min(0.95, confidence))
-        
-        # Generate message
-        if ai_score > 0.6:
-            message = f"Likely AI-generated (Score: {ai_score:.1%})"
-        elif ai_score > 0.3:
-            message = f"Possibly AI-generated (Score: {ai_score:.1%})"
-        else:
-            message = f"Likely human-written (Score: {ai_score:.1%})"
-        
-        return {
-            "aiScore": ai_score,
-            "isSuspectedAI": ai_score > 0.5,
-            "confidence": confidence,
-            "riskLevel": risk_level,
-            "message": message,
-            "studentId": student_id,
-            "questionId": question_id,
-            "detectedPatterns": detected_patterns,
-            "wordCount": word_count,
-            "sentenceCount": sentence_count,
-            "avgWordsPerSentence": round(avg_words_per_sentence, 2),
-            "vocabularyDiversity": round(vocabulary_diversity, 3)
-        }
-        
-    except Exception as e:
-        return {
-            "aiScore": 0.5,
-            "isSuspectedAI": False,
-            "confidence": 0.5,
-            "riskLevel": "MEDIUM",
-            "message": f"Analysis error: {str(e)}",
-            "studentId": student_id,
-            "questionId": question_id
-        }
-
 def main():
-    if len(sys.argv) != 4:
-        print(json.dumps({
-            "error": "Usage: python3 ai_model.py <text> <student_id> <question_id>",
-            "aiScore": 0.5,
-            "isSuspectedAI": False,
-            "confidence": 0.5
-        }))
+    if len(sys.argv) < 2:
+        print("Usage: python ai_model.py <text> [student_id] [question_id]")
         sys.exit(1)
     
     text = sys.argv[1]
-    student_id = sys.argv[2]
-    question_id = sys.argv[3]
+    student_id = sys.argv[2] if len(sys.argv) > 2 else None
+    question_id = sys.argv[3] if len(sys.argv) > 3 else None
     
-    # Analyze the text
-    result = analyze_text(text, student_id, question_id)
+    detector = RealAIDetector()
+    result = detector.analyze_text(text, student_id, question_id)
     
-    # Output JSON result
-    print(json.dumps(result))
-    sys.exit(0)
+    print(json.dumps(result, indent=2))
 
 if __name__ == "__main__":
     main()

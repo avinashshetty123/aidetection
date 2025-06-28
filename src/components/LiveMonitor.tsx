@@ -18,11 +18,7 @@ interface LiveMonitorProps {
   history: DetectionData[];
 }
 
-const LiveMonitor: React.FC<LiveMonitorProps> = ({ 
-  isActive, 
-  currentData, 
-  history = [] 
-}) => {
+const LiveMonitor: React.FC<LiveMonitorProps> = ({ isActive, currentData, history }) => {
   const formatTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString();
   };
@@ -46,7 +42,7 @@ const LiveMonitor: React.FC<LiveMonitorProps> = ({
   };
 
   // Prepare chart data
-  const chartData = (history || []).slice(-20).map((data, index) => ({
+  const chartData = history.slice(-20).map((data, index) => ({
     index,
     overall: data.overallScore,
     video: data.videoScore,
@@ -286,7 +282,7 @@ const LiveMonitor: React.FC<LiveMonitorProps> = ({
               <div className="bg-slate-800 rounded-lg p-6">
                 <h3 className="text-lg font-medium mb-4 text-red-400">Recent Alerts</h3>
                 <div className="space-y-2">
-                  {(history || []).filter(d => d.alert).slice(-5).reverse().map((data, index) => (
+                  {history.filter(d => d.alert).slice(-5).reverse().map((data, index) => (
                     <div key={index} className="flex items-center justify-between bg-red-900/20 border border-red-800 rounded p-3">
                       <div className="flex items-center space-x-3">
                         <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>

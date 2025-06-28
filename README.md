@@ -2,87 +2,15 @@
 
 A real-time AI-powered deepfake detection system for video and audio.
 
-## 🚀 Deployment
+## Getting Started
 
-### Backend Deployment (Railway)
-
-1. **Connect to Railway:**
-   - Go to [Railway.app](https://railway.app)
-   - Connect your GitHub repository
-   - Select the `server` folder as the source
-
-2. **Environment Variables:**
-   - `PORT`: Railway will set this automatically
-   - `PYTHONUNBUFFERED`: Set to `1`
-   - `NODE_ENV`: Set to `production`
-
-3. **Build Settings:**
-   - Railway will automatically detect the Node.js project
-   - The `postinstall` script will install Python and dependencies
-   - Start command: `npm start`
-
-4. **Health Check:**
-   - Railway will use `/api/health` endpoint for health checks
-
-### Frontend Deployment (Netlify)
-
-1. **Connect to Netlify:**
-   - Go to [Netlify.com](https://netlify.com)
-   - Connect your GitHub repository
-   - Set build settings:
-     - Build command: `npm run build`
-     - Publish directory: `dist`
-
-2. **Environment Variables:**
-   - `VITE_API_URL`: Set to your Railway backend URL (e.g., `https://your-app.railway.app`)
-
-3. **Custom Domain (Optional):**
-   - Add your custom domain in Netlify settings
-
-### Troubleshooting
-
-#### Blue Screen Issue
-If you see a blue screen instead of the application:
-
-1. **Check Browser Console:**
-   - Open Developer Tools (F12)
-   - Look for any JavaScript errors in the Console tab
-   - Check the Network tab for failed API requests
-
-2. **Environment Variables:**
-   - Ensure `VITE_API_URL` is set correctly in Netlify
-   - The URL should point to your Railway backend
-   - Format: `https://your-app-name.railway.app`
-
-3. **Backend Status:**
-   - Verify your Railway backend is running
-   - Check the `/api/health` endpoint: `https://your-app.railway.app/api/health`
-   - Should return a JSON response with status information
-
-4. **Clear Cache:**
-   - Hard refresh the page (Ctrl+Shift+R)
-   - Clear browser cache and cookies
-   - Try in an incognito/private window
-
-5. **Local Testing:**
-   - Run `npm run dev` locally to test
-   - Check if the issue occurs in development mode
-
-#### Common Issues:
-- **CORS Errors**: Backend CORS configuration should allow your frontend domain
-- **API Timeout**: Backend health check might be timing out
-- **Build Errors**: Check Netlify build logs for any compilation errors
-- **Slice Errors**: Fixed undefined array slice operations with proper null checks
-
-### Local Development
-
-#### Prerequisites
+### Prerequisites
 
 - Node.js (v16 or higher)
 - Python 3.8 or higher
 - npm or yarn
 
-#### Setup
+### Setup
 
 1. Install JavaScript dependencies:
    ```
@@ -95,7 +23,7 @@ If you see a blue screen instead of the application:
    npm run setup:python
    ```
 
-#### Text Detection Setup
+### Text Detection Setup
 
 For text detection functionality, you have two options:
 
@@ -111,7 +39,7 @@ For text detection functionality, you have two options:
      ```
    - Download and install Tesseract OCR from: https://github.com/UB-Mannheim/tesseract/wiki
 
-#### Running the Application
+### Running the Application
 
 To start both frontend and backend simultaneously:
 
@@ -123,7 +51,7 @@ This will start:
 - Frontend: Vite development server (typically on http://localhost:5173)
 - Backend: Express server on http://localhost:3001
 
-#### Running Components Separately
+### Running Components Separately
 
 To run only the frontend:
 ```
@@ -135,7 +63,7 @@ To run only the backend:
 npm run dev:server
 ```
 
-#### System Maintenance
+### System Maintenance
 
 To optimize and clean the system:
 ```

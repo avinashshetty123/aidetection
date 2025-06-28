@@ -12,24 +12,10 @@ interface DetectionReport {
   detectedPatterns: string[];
 }
 
-interface ReportDashboardProps {
-  detectionHistory?: DetectionReport[];
-  suspiciousSegments?: string[];
-}
-
-const ReportDashboard: React.FC<ReportDashboardProps> = ({ 
-  detectionHistory: propDetectionHistory = [], 
-  suspiciousSegments: propSuspiciousSegments = [] 
-}) => {
+const ReportDashboard = () => {
   const [reports, setReports] = useState<DetectionReport[]>([]);
   const [filter, setFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
-  const [selectedReport, setSelectedReport] = useState<DetectionReport | null>(null);
-  const [isExporting, setIsExporting] = useState(false);
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
-
-  // Use props if available, otherwise use local state
-  const detectionHistory = propDetectionHistory.length > 0 ? propDetectionHistory : [];
-  const suspiciousSegments = propSuspiciousSegments.length > 0 ? propSuspiciousSegments : [];
 
   // Load real detection reports
   useEffect(() => {
@@ -273,7 +259,7 @@ const ReportDashboard: React.FC<ReportDashboardProps> = ({
                       <div className="text-xs text-slate-400">
                         {report.detectedPatterns.length > 0 ? (
                           <div className="space-y-1">
-                            {(report.detectedPatterns || []).slice(0, 2).map((pattern, index) => (
+                            {report.detectedPatterns.slice(0, 2).map((pattern, index) => (
                               <div key={index} className="flex items-center space-x-1">
                                 <div className="w-1 h-1 bg-red-400 rounded-full"></div>
                                 <span>{pattern}</span>

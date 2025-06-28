@@ -228,30 +228,7 @@ function runPythonInference(filePath, mediaType) {
       return reject(new Error('Python detection script not found'));
     }
 
-    // Try multiple Python commands in order of preference
-    let pythonCommand = 'python3';
-    if (process.platform === 'win32') {
-      pythonCommand = 'python';
-    } else {
-      // On Railway/Linux, try virtual environment first, then system Python
-      const venvPython = path.join(__dirname, 'venv', 'bin', 'python3');
-      if (fs.existsSync(venvPython)) {
-        pythonCommand = venvPython;
-      } else {
-        try {
-          require('child_process').execSync('python3 --version', { stdio: 'ignore' });
-          pythonCommand = 'python3';
-        } catch (e) {
-          try {
-            require('child_process').execSync('python --version', { stdio: 'ignore' });
-            pythonCommand = 'python';
-          } catch (e2) {
-            return reject(new Error('Python not found. Please install Python 3.7+ and ensure it\'s in your PATH'));
-          }
-        }
-      }
-    }
-
+    const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
     const py = spawn(pythonCommand, [pythonScript, filePath, mediaType], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, PYTHONUNBUFFERED: '1' }
@@ -307,11 +284,7 @@ function runPythonInference(filePath, mediaType) {
     py.on('error', (err) => {
       if (finished) return;
       console.error('Failed to start Python process:', err.message);
-      if (err.code === 'ENOENT') {
-        done(new Error(`Python not found at command: ${pythonCommand}. Please install Python 3.7+ and ensure it's in your PATH`));
-      } else {
-        done(new Error(`Failed to start Python process: ${err.message}`));
-      }
+      done(new Error(`Failed to start Python process: ${err.message}`));
     });
 
     const timeout = setTimeout(() => {
@@ -419,31 +392,7 @@ app.post('/api/v1/analyze', authenticateToken, async (req, res) => {
     console.log(`[API v1] Analyzing text for student: ${studentId || 'unknown'}, question: ${questionId || 'unknown'}`);
     
     const pythonScript = path.join(__dirname, 'ai_model.py');
-    
-    // Try multiple Python commands in order of preference
-    let pythonCommand = 'python3';
-    if (process.platform === 'win32') {
-      pythonCommand = 'python';
-    } else {
-      // On Railway/Linux, try virtual environment first, then system Python
-      const venvPython = path.join(__dirname, 'venv', 'bin', 'python3');
-      if (fs.existsSync(venvPython)) {
-        pythonCommand = venvPython;
-      } else {
-        // On Unix-like systems, try python3 first, then python
-        try {
-          require('child_process').execSync('python3 --version', { stdio: 'ignore' });
-          pythonCommand = 'python3';
-        } catch (e) {
-          try {
-            require('child_process').execSync('python --version', { stdio: 'ignore' });
-            pythonCommand = 'python';
-          } catch (e2) {
-            throw new Error('Python not found. Please install Python 3.7+ and ensure it\'s in your PATH');
-          }
-        }
-      }
-    }
+    const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
     
     const result = await new Promise((resolve, reject) => {
       const py = spawn(pythonCommand, [pythonScript, text, studentId || '', questionId || '']);
@@ -469,14 +418,6 @@ app.post('/api/v1/analyze', authenticateToken, async (req, res) => {
           }
         } else {
           reject(new Error(`Detection failed: ${error}`));
-        }
-      });
-      
-      py.on('error', (err) => {
-        if (err.code === 'ENOENT') {
-          reject(new Error(`Python not found at command: ${pythonCommand}. Please install Python 3.7+ and ensure it's in your PATH`));
-        } else {
-          reject(new Error(`Failed to start Python process: ${err.message}`));
         }
       });
       
@@ -695,22 +636,12 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
   const startTime = Date.now();
   let filePath = null;
   let responded = false;
-  
   function safeRespond(fn) {
     if (!responded && !res.headersSent) {
       responded = true;
-      try {
-        fn();
-      } catch (error) {
-        console.error('Error in safeRespond:', error);
-        // If the response function fails, try to send a basic error response
-        if (!res.headersSent) {
-          res.status(500).json({ error: 'Internal server error' });
-        }
-      }
+      fn();
     }
   }
-  
   try {
     if (!req.file) {
       safeRespond(() => res.status(400).json({ 
@@ -722,15 +653,12 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       }));
       return;
     }
-    
     filePath = req.file.path;
     filesBeingProcessed.add(filePath);
     const mediaType = req.file.mimetype.includes('video') ? 'video' : 'audio';
-    
     if (req.file.size > 50 * 1024 * 1024) {
       throw new Error('File too large. Maximum size is 50MB.');
     }
-    
     if (!isRecording) {
       try {
         if (fs.existsSync(filePath)) {
@@ -750,16 +678,13 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       }));
       return;
     }
-    
     let result;
     try {
       result = await runPythonInference(filePath, mediaType);
     } catch (error) {
       throw error;
     }
-    
     const processingTime = Date.now() - startTime;
-    
     if (!result.suspicious) {
       try {
         if (fs.existsSync(filePath)) {
@@ -769,7 +694,6 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
         console.warn('Failed to delete non-suspicious file:', e.message);
       }
     }
-    
     const detectionData = {
       ...result,
       timestamp: Date.now(),
@@ -777,9 +701,7 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       filePath: result.suspicious ? filePath : null,
       processingTime
     };
-    
     detectionHistory.push(detectionData);
-    
     if (result.suspicious) {
       const suspiciousData = {
         id: Date.now(),
@@ -794,11 +716,9 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       };
       suspiciousSegments.push(suspiciousData);
     }
-    
     if (detectionHistory.length > 100) {
       detectionHistory = detectionHistory.slice(-100);
     }
-    
     if (suspiciousSegments.length > 50) {
       const oldSegments = suspiciousSegments.slice(0, -50);
       oldSegments.forEach(segment => {
@@ -812,7 +732,6 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       });
       suspiciousSegments = suspiciousSegments.slice(-50);
     }
-    
     safeRespond(() => res.json({
       trustScore: result.trustScore,
       suspicious: result.suspicious,
@@ -822,11 +741,10 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       model: result.model || 'AI Detection',
       features: result.features || {}
     }));
-    
+    return;
   } catch (error) {
     const processingTime = Date.now() - startTime;
     console.error(`[ERROR] Detection failed after ${processingTime}ms:`, error.message);
-    
     if (filePath) {
       try {
         if (fs.existsSync(filePath)) {
@@ -836,10 +754,8 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
         console.warn('Failed to delete file on error:', e.message);
       }
     }
-    
     let statusCode = 500;
     let errorMessage = 'Detection failed';
-    
     if (error.message.includes('File too large')) {
       statusCode = 413;
       errorMessage = error.message;
@@ -849,11 +765,7 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
     } else if (error.message.includes('not found')) {
       statusCode = 404;
       errorMessage = 'Detection model not available';
-    } else if (error.message.includes('ENOENT')) {
-      statusCode = 503;
-      errorMessage = 'Detection service temporarily unavailable';
     }
-    
     safeRespond(() => res.status(statusCode).json({ 
       error: errorMessage,
       details: process.env.NODE_ENV === 'development' ? error.message : undefined,
@@ -864,7 +776,7 @@ app.post('/api/detect', upload.single('media'), async (req, res) => {
       processingTime,
       model: 'Error Handler'
     }));
-    
+    return;
   } finally {
     if (filePath) filesBeingProcessed.delete(filePath);
   }
@@ -896,39 +808,7 @@ app.delete('/api/suspicious', authenticateToken, (req, res) => {
 
 // Enhanced health check
 app.get('/api/health', (req, res) => {
-  // Try multiple Python commands in order of preference
-  let pythonCommand = 'python3';
-  if (process.platform === 'win32') {
-    pythonCommand = 'python';
-  } else {
-    // On Railway/Linux, try virtual environment first, then system Python
-    const venvPython = path.join(__dirname, 'venv', 'bin', 'python3');
-    if (fs.existsSync(venvPython)) {
-      pythonCommand = venvPython;
-    } else {
-      // On Unix-like systems, try python3 first, then python
-      try {
-        require('child_process').execSync('python3 --version', { stdio: 'ignore' });
-        pythonCommand = 'python3';
-      } catch (e) {
-        try {
-          require('child_process').execSync('python --version', { stdio: 'ignore' });
-          pythonCommand = 'python';
-        } catch (e2) {
-          return res.json({ 
-            status: 'ok', 
-            timestamp: Date.now(),
-            python: 'unavailable',
-            pythonError: 'Python not found. Please install Python 3.7+ and ensure it\'s in your PATH',
-            models: fs.existsSync(modelsDir) ? 'available' : 'missing',
-            tempDir: fs.existsSync(tempDir) ? 'available' : 'missing',
-            detectionHistory: 0,
-            suspiciousSegments: 0
-          });
-        }
-      }
-    }
-  }
+  const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
   
   // Test Python availability
   const testPython = spawn(pythonCommand, ['--version']);
@@ -938,7 +818,6 @@ app.get('/api/health', (req, res) => {
       status: 'ok', 
       timestamp: Date.now(),
       python: code === 0 ? 'available' : 'unavailable',
-      pythonCommand: pythonCommand,
       models: fs.existsSync(modelsDir) ? 'available' : 'missing',
       tempDir: fs.existsSync(tempDir) ? 'available' : 'missing',
       detectionHistory: 0,
@@ -946,13 +825,11 @@ app.get('/api/health', (req, res) => {
     });
   });
   
-  testPython.on('error', (err) => {
+  testPython.on('error', () => {
     res.json({ 
       status: 'ok', 
       timestamp: Date.now(),
       python: 'unavailable',
-      pythonError: err.message,
-      pythonCommand: pythonCommand,
       models: fs.existsSync(modelsDir) ? 'available' : 'missing',
       tempDir: fs.existsSync(tempDir) ? 'available' : 'missing',
       detectionHistory: 0,
