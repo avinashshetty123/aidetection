@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Shield, AlertTriangle, Video, Mic, Settings, History, Play, Pause, Camera, CameraOff, MonitorSmartphone, Upload, FileText, BarChart } from 'lucide-react';
+import { Shield, AlertTriangle, Video, Mic, Settings, History, Play, Pause, Camera, CameraOff, MonitorSmartphone, Upload, FileText, BarChart, Menu, X } from 'lucide-react';
 import TrustMeter from './components/TrustMeter';
 import LiveMonitor from './components/LiveMonitor';
 import EvidencePanel from './components/EvidencePanel';
@@ -15,6 +15,7 @@ import TestResponseDetector from './components/TestResponseDetector';
 import PlatformIntegration from './components/PlatformIntegration';
 import ReportDashboard from './components/ReportDashboard';
 import { API_ENDPOINTS } from './config/api';
+import BoltLogo from './assets/BoltLogo.svg';
 
 interface DetectionData {
   timestamp: number;
@@ -51,6 +52,7 @@ function App() {
     suspiciousCount: number;
     avgTrustScore: number;
   } | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Check backend status with retry logic
   useEffect(() => {
@@ -318,19 +320,27 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-900 text-white overflow-hidden">
       {/* Header */}
-      <header className="bg-slate-800 border-b border-slate-700 px-6 py-4">
+      <header className="bg-slate-800 border-b border-slate-700 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-blue-600 rounded-lg">
-              <Shield className="w-6 h-6" />
+              <img src={BoltLogo} alt="Bolt Logo" className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">TRUVOICE</h1>
-              <p className="text-sm text-slate-400">Real-Time Deepfake Detection</p>
+              <h1 className="text-lg sm:text-xl font-bold">TRUVOICE</h1>
+              <p className="text-xs sm:text-sm text-slate-400">Real-Time Deepfake Detection</p>
             </div>
           </div>
           
-          <div className="flex items-center space-x-4">
+          {/* Mobile menu button */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="lg:hidden p-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition-colors"
+          >
+            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+          
+          <div className="hidden lg:flex items-center space-x-4">
             {/* Backend Status */}
             <div className="flex items-center space-x-2 text-sm">
               <div className={`w-2 h-2 rounded-full ${
@@ -397,6 +407,73 @@ function App() {
           </div>
         </div>
         
+        {/* Mobile Controls */}
+        <div className="lg:hidden mt-4 flex flex-wrap items-center justify-between gap-3">
+          {/* Backend Status */}
+          <div className="flex items-center space-x-2 text-sm">
+            <div className={`w-2 h-2 rounded-full ${
+              backendStatus === 'online' ? 'bg-green-400' : 
+              backendStatus === 'offline' ? 'bg-red-400' : 'bg-yellow-400'
+            }`}></div>
+            <span className="text-slate-300">
+              {backendStatus === 'checking' ? 'Checking...' : backendStatus}
+            </span>
+          </div>
+          
+          {/* Detection Status */}
+          <div className="flex items-center space-x-2 text-sm">
+            <div className={`w-2 h-2 rounded-full ${
+              isActive ? 'bg-green-400 animate-pulse' : 
+              hasPermissions ? 'bg-slate-600' : 'bg-red-400'
+            }`}></div>
+            <span className="text-slate-300">
+              {!hasPermissions ? 'NO PERMISSIONS' : isActive ? 'MONITORING' : 'INACTIVE'}
+            </span>
+          </div>
+          
+          {/* Processing Indicator */}
+          {isProcessing && (
+            <div className="flex items-center space-x-2 text-sm text-blue-400">
+              <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+              <span>Processing...</span>
+            </div>
+          )}
+          
+          <button
+            onClick={handleToggleDetection}
+            disabled={backendStatus === 'offline' || isRequestingPermissions}
+            className={`flex items-center space-x-2 px-3 py-2 rounded-lg font-medium transition-all text-sm ${
+              !hasPermissions 
+                ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                : isActive 
+                  ? 'bg-red-600 hover:bg-red-700 text-white' 
+                  : 'bg-green-600 hover:bg-green-700 text-white'
+            } ${(backendStatus === 'offline' || isRequestingPermissions) ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            {isRequestingPermissions ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>Requesting...</span>
+              </>
+            ) : !hasPermissions ? (
+              <>
+                <Camera className="w-4 h-4" />
+                <span>Grant Permissions</span>
+              </>
+            ) : isActive ? (
+              <>
+                <Pause className="w-4 h-4" />
+                <span>Stop</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4" />
+                <span>Start</span>
+              </>
+            )}
+          </button>
+        </div>
+        
         {/* Permission Error */}
         {permissionError && (
           <div className="mt-3 p-3 bg-red-900/50 border border-red-700 rounded-lg">
@@ -422,7 +499,9 @@ function App() {
 
       <div className="flex h-[calc(100vh-80px)] bg-slate-900">
         {/* Sidebar Navigation */}
-        <nav className="w-64 bg-slate-800 border-r border-slate-700 p-4">
+        <nav className={`fixed lg:relative inset-y-0 left-0 z-50 w-64 bg-slate-800 border-r border-slate-700 p-4 transform transition-transform duration-300 ease-in-out ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        }`}>
           <div className="space-y-2">
             {[
               { id: 'monitor', label: 'Live Monitor', icon: Video },
@@ -438,7 +517,10 @@ function App() {
             ].map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
-                onClick={() => setActiveTab(id as any)}
+                onClick={() => {
+                  setActiveTab(id as any);
+                  setSidebarOpen(false); // Close sidebar on mobile after selection
+                }}
                 className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
                   activeTab === id
                     ? 'bg-blue-600 text-white'
@@ -446,7 +528,7 @@ function App() {
                 }`}
               >
                 <Icon className="w-5 h-5" />
-                <span>{label}</span>
+                <span className="text-sm sm:text-base">{label}</span>
               </button>
             ))}
           </div>
@@ -465,8 +547,8 @@ function App() {
             <div className="mt-6 space-y-3">
               <div className="bg-slate-700 rounded-lg p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-400">Video Trust</span>
-                  <span className={`text-sm font-medium ${
+                  <span className="text-xs sm:text-sm text-slate-400">Video Trust</span>
+                  <span className={`text-xs sm:text-sm font-medium ${
                     currentData.videoScore > 70 ? 'text-green-400' : 
                     currentData.videoScore > 40 ? 'text-yellow-400' : 'text-red-400'
                   }`}>
@@ -476,8 +558,8 @@ function App() {
               </div>
               <div className="bg-slate-700 rounded-lg p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-400">Audio Trust</span>
-                  <span className={`text-sm font-medium ${
+                  <span className="text-xs sm:text-sm text-slate-400">Audio Trust</span>
+                  <span className={`text-xs sm:text-sm font-medium ${
                     currentData.audioScore > 70 ? 'text-green-400' : 
                     currentData.audioScore > 40 ? 'text-yellow-400' : 'text-red-400'
                   }`}>
@@ -487,8 +569,8 @@ function App() {
               </div>
               <div className="bg-slate-700 rounded-lg p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-400">Alerts</span>
-                  <span className="text-sm font-medium text-red-400">
+                  <span className="text-xs sm:text-sm text-slate-400">Alerts</span>
+                  <span className="text-xs sm:text-sm font-medium text-red-400">
                     {suspiciousSegments.length}
                   </span>
                 </div>
@@ -496,167 +578,87 @@ function App() {
               {currentData.processingTime && (
                 <div className="bg-slate-700 rounded-lg p-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-400">Latency</span>
-                    <span className="text-sm font-medium text-blue-400">
-                      {Math.round(currentData.processingTime)}ms
+                    <span className="text-xs sm:text-sm text-slate-400">Latency</span>
+                    <span className="text-xs sm:text-sm font-medium text-blue-400">
+                      {currentData.processingTime}ms
                     </span>
                   </div>
                 </div>
               )}
             </div>
           )}
-
-          {/* Performance Monitor */}
-          <div className="mt-6">
-            <PerformanceMonitor 
-              isActive={isActive && hasPermissions}
-              lastProcessingTime={currentData.processingTime}
-            />
-          </div>
         </nav>
 
+        {/* Mobile overlay */}
+        {sidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
         {/* Main Content */}
-        <main className="flex-1 overflow-auto bg-slate-900">
-          {/* Media Capture Components */}
-          {isActive && hasPermissions && backendStatus === 'online' ? (
-            <>
-              <ScreenCapture 
-                onDataAvailable={(blob, type) => {
-                  if (!isActive) return;
-                  
-                  const formData = new FormData();
-                  formData.append('media', blob, `screen_${Date.now()}.webm`);
-                  
-                  fetch(API_ENDPOINTS.DETECT, {
-                    method: 'POST',
-                    body: formData
-                  })
-                  .then(res => res.json())
-                  .then(result => {
-                    if (isActive) {
-                      handleDetectionResult(result);
-                    }
-                  })
-                  .catch(err => console.error('Screen detection error:', err));
-                }}
+        <main className="flex-1 overflow-hidden">
+          <div className="h-full p-4 sm:p-6 overflow-y-auto">
+            {activeTab === 'monitor' && (
+              <LiveMonitor 
                 isActive={isActive}
-              />
-              <MediaCapture
+                currentData={currentData}
                 onDetectionResult={handleDetectionResult}
-                onProcessingChange={setIsProcessing}
+                backendStatus={backendStatus}
               />
-            </>
-          ) : null}
-          
-          {activeTab === 'monitor' && (
-            <LiveMonitor 
-              isActive={isActive && hasPermissions}
-              currentData={currentData}
-              history={detectionHistory}
-            />
-          )}
-          {activeTab === 'analyzer' && (
-            <div className="p-6">
-              <h1 className="text-2xl font-bold mb-6">Video Analysis</h1>
-              <p className="text-slate-300 mb-6">
-                Upload a video file to analyze it for AI-generated content. 
-                The system will process the video and provide a trust score.
-              </p>
+            )}
+            {activeTab === 'analyzer' && (
               <VideoAnalyzer 
-                onAnalysisComplete={(result) => {
-                  if (result.suspicious) {
-                    setSuspiciousSegments(prev => [...prev, {
-                      id: Date.now(),
-                      timestamp: Date.now(),
-                      type: 'video',
-                      score: Math.round(result.trustScore * 100),
-                      duration: 0
-                    }]);
-                  }
-                }}
+                onDetectionResult={handleDetectionResult}
+                backendStatus={backendStatus}
               />
-            </div>
-          )}
-          {activeTab === 'text' && (
-            <div className="p-6">
-              <h1 className="text-2xl font-bold mb-6">Text Analysis</h1>
-              <p className="text-slate-300 mb-6">
-                Enter text to analyze it for AI-generated content.
-                The system will evaluate the text and provide a trust score.
-              </p>
+            )}
+            {activeTab === 'text' && (
               <TextAnalyzer 
-                onAnalysisComplete={(result) => {
-                  if (result.suspicious) {
-                    setSuspiciousSegments(prev => [...prev, {
-                      id: Date.now(),
-                      timestamp: Date.now(),
-                      type: 'text',
-                      score: Math.round(result.trustScore * 100),
-                      duration: 0
-                    }]);
-                  }
-                }}
+                onDetectionResult={handleDetectionResult}
+                backendStatus={backendStatus}
               />
-            </div>
-          )}
-          {activeTab === 'test-detector' && (
-            <div className="p-6">
-              <h1 className="text-2xl font-bold mb-6">Academic Test Response Detector</h1>
-              <p className="text-slate-300 mb-6">
-                Analyze student responses for AI-generated content in academic assessments.
-                Designed specifically for educational integrity monitoring.
-              </p>
-              <TestResponseDetector />
-            </div>
-          )}
-          {activeTab === 'platform-integration' && (
-            <div className="p-6">
-              <h1 className="text-2xl font-bold mb-6">Platform Integration</h1>
-              <p className="text-slate-300 mb-6">
-                Integrate AI detection with Google Forms, Moodle, Canvas, or any testing platform.
-                Platform-agnostic solution with real-time alerts and comprehensive reporting.
-              </p>
+            )}
+            {activeTab === 'test-detector' && (
+              <TestResponseDetector 
+                onDetectionResult={handleDetectionResult}
+                backendStatus={backendStatus}
+              />
+            )}
+            {activeTab === 'platform-integration' && (
               <PlatformIntegration />
-            </div>
-          )}
-          {activeTab === 'reports' && (
-            <div className="p-6">
-              <h1 className="text-2xl font-bold mb-6">Detection Reports</h1>
-              <p className="text-slate-300 mb-6">
-                Monitor AI detection results across all tests with detailed analytics.
-                Export comprehensive reports for academic integrity documentation.
-              </p>
-              <ReportDashboard />
-            </div>
-          )}
-          {activeTab === 'evidence' && (
-            <EvidencePanel 
-              segments={suspiciousSegments}
-              onClearAll={clearSuspiciousSegments}
-            />
-          )}
-          {activeTab === 'metrics' && (
-            <MetricsPanel 
-              history={detectionHistory}
-              isActive={isActive && hasPermissions}
-            />
-          )}
-          {activeTab === 'summary' && (
-            <div className="p-6">
-              <h1 className="text-2xl font-bold mb-6">AI Detection Verdict</h1>
-              <p className="text-slate-300 mb-6">
-                View your detection session history and overall AI detection verdict.
-                The system analyzes patterns across all your detection sessions.
-              </p>
-              <SessionSummary 
-                isActive={isActive}
-                currentSession={currentSession || undefined}
+            )}
+            {activeTab === 'reports' && (
+              <ReportDashboard 
+                detectionHistory={detectionHistory}
+                suspiciousSegments={suspiciousSegments}
               />
-            </div>
-          )}
-          {activeTab === 'settings' && (
-            <SettingsPanel />
-          )}
+            )}
+            {activeTab === 'summary' && (
+              <SessionSummary 
+                currentSession={currentSession}
+                detectionHistory={detectionHistory}
+                suspiciousSegments={suspiciousSegments}
+              />
+            )}
+            {activeTab === 'evidence' && (
+              <EvidencePanel 
+                suspiciousSegments={suspiciousSegments}
+                onClearSegments={clearSuspiciousSegments}
+              />
+            )}
+            {activeTab === 'metrics' && (
+              <MetricsPanel 
+                detectionHistory={detectionHistory}
+                currentData={currentData}
+                isActive={isActive}
+              />
+            )}
+            {activeTab === 'settings' && (
+              <SettingsPanel />
+            )}
+          </div>
         </main>
       </div>
     </div>
