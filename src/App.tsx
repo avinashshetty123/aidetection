@@ -53,6 +53,7 @@ function App() {
     avgTrustScore: number;
   } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Check backend status with retry logic
   useEffect(() => {
@@ -84,13 +85,20 @@ function App() {
         } else {
           setBackendStatus('offline');
         }
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    checkBackend();
+    // Delay the initial check to prevent blocking the UI
+    const timer = setTimeout(checkBackend, 1000);
     const interval = setInterval(checkBackend, 30000);
-    return () => clearInterval(interval);
-  }, [connectionRetries]);
+    
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
+  }, [connectionRetries, maxRetries]);
 
   // Request permissions with proper error handling
   const requestPermissions = async () => {
@@ -318,350 +326,372 @@ function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white overflow-hidden">
-      {/* Header */}
-      <header className="bg-slate-800 border-b border-slate-700 px-4 sm:px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-600 rounded-lg">
-              <img src={BoltLogo} alt="Bolt Logo" className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold">TRUVOICE</h1>
-              <p className="text-xs sm:text-sm text-slate-400">Real-Time Deepfake Detection</p>
-            </div>
-          </div>
-          
-          {/* Mobile menu button */}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="lg:hidden p-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition-colors"
-          >
-            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-          
-          <div className="hidden lg:flex items-center space-x-4">
-            {/* Backend Status */}
-            <div className="flex items-center space-x-2 text-sm">
-              <div className={`w-2 h-2 rounded-full ${
-                backendStatus === 'online' ? 'bg-green-400' : 
-                backendStatus === 'offline' ? 'bg-red-400' : 'bg-yellow-400'
-              }`}></div>
-              <span className="text-slate-300">
-                Backend: {backendStatus === 'checking' ? 'Checking...' : backendStatus}
-              </span>
-            </div>
-            
-            {/* Detection Status */}
-            <div className="flex items-center space-x-2 text-sm">
-              <div className={`w-2 h-2 rounded-full ${
-                isActive ? 'bg-green-400 animate-pulse' : 
-                hasPermissions ? 'bg-slate-600' : 'bg-red-400'
-              }`}></div>
-              <span className="text-slate-300">
-                {!hasPermissions ? 'NO PERMISSIONS' : isActive ? 'MONITORING' : 'INACTIVE'}
-              </span>
-            </div>
-            
-            {/* Processing Indicator */}
-            {isProcessing && (
-              <div className="flex items-center space-x-2 text-sm text-blue-400">
-                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                <span>Processing...</span>
+    <>
+      {isLoading ? (
+        <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center">
+          <div className="text-center">
+            <div className="flex justify-center mb-6">
+              <div className="p-4 bg-blue-600 rounded-lg">
+                <img src={BoltLogo} alt="Bolt Logo" className="w-12 h-12 animate-pulse" />
               </div>
-            )}
-            
-            <button
-              onClick={handleToggleDetection}
-              disabled={backendStatus === 'offline' || isRequestingPermissions}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${
-                !hasPermissions 
-                  ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
-                  : isActive 
-                    ? 'bg-red-600 hover:bg-red-700 text-white' 
-                    : 'bg-green-600 hover:bg-green-700 text-white'
-              } ${(backendStatus === 'offline' || isRequestingPermissions) ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              {isRequestingPermissions ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Requesting...</span>
-                </>
-              ) : !hasPermissions ? (
-                <>
-                  <Camera className="w-4 h-4" />
-                  <span>Grant Permissions</span>
-                </>
-              ) : isActive ? (
-                <>
-                  <Pause className="w-4 h-4" />
-                  <span>Stop Detection</span>
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4" />
-                  <span>Start Detection</span>
-                </>
-              )}
-            </button>
+            </div>
+            <h1 className="text-2xl font-bold mb-2">TRUVOICE</h1>
+            <p className="text-slate-400 mb-6">Real-Time Deepfake Detection</p>
+            <div className="flex items-center justify-center space-x-2">
+              <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+              <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+              <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+            </div>
+            <p className="text-sm text-slate-500 mt-4">Initializing...</p>
           </div>
         </div>
-        
-        {/* Mobile Controls */}
-        <div className="lg:hidden mt-4 flex flex-wrap items-center justify-between gap-3">
-          {/* Backend Status */}
-          <div className="flex items-center space-x-2 text-sm">
-            <div className={`w-2 h-2 rounded-full ${
-              backendStatus === 'online' ? 'bg-green-400' : 
-              backendStatus === 'offline' ? 'bg-red-400' : 'bg-yellow-400'
-            }`}></div>
-            <span className="text-slate-300">
-              {backendStatus === 'checking' ? 'Checking...' : backendStatus}
-            </span>
-          </div>
-          
-          {/* Detection Status */}
-          <div className="flex items-center space-x-2 text-sm">
-            <div className={`w-2 h-2 rounded-full ${
-              isActive ? 'bg-green-400 animate-pulse' : 
-              hasPermissions ? 'bg-slate-600' : 'bg-red-400'
-            }`}></div>
-            <span className="text-slate-300">
-              {!hasPermissions ? 'NO PERMISSIONS' : isActive ? 'MONITORING' : 'INACTIVE'}
-            </span>
-          </div>
-          
-          {/* Processing Indicator */}
-          {isProcessing && (
-            <div className="flex items-center space-x-2 text-sm text-blue-400">
-              <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-              <span>Processing...</span>
-            </div>
-          )}
-          
-          <button
-            onClick={handleToggleDetection}
-            disabled={backendStatus === 'offline' || isRequestingPermissions}
-            className={`flex items-center space-x-2 px-3 py-2 rounded-lg font-medium transition-all text-sm ${
-              !hasPermissions 
-                ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
-                : isActive 
-                  ? 'bg-red-600 hover:bg-red-700 text-white' 
-                  : 'bg-green-600 hover:bg-green-700 text-white'
-            } ${(backendStatus === 'offline' || isRequestingPermissions) ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
-            {isRequestingPermissions ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Requesting...</span>
-              </>
-            ) : !hasPermissions ? (
-              <>
-                <Camera className="w-4 h-4" />
-                <span>Grant Permissions</span>
-              </>
-            ) : isActive ? (
-              <>
-                <Pause className="w-4 h-4" />
-                <span>Stop</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                <span>Start</span>
-              </>
-            )}
-          </button>
-        </div>
-        
-        {/* Permission Error */}
-        {permissionError && (
-          <div className="mt-3 p-3 bg-red-900/50 border border-red-700 rounded-lg">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="w-4 h-4 text-red-400" />
-              <span className="text-sm text-red-300">{permissionError}</span>
-            </div>
-          </div>
-        )}
-        
-        {/* Backend Offline Warning */}
-        {backendStatus === 'offline' && (
-          <div className="mt-3 p-3 bg-yellow-900/50 border border-yellow-700 rounded-lg">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="w-4 h-4 text-yellow-400" />
-              <span className="text-sm text-yellow-300">
-                Backend server offline. Please start the Node.js server: <code className="bg-slate-800 px-2 py-1 rounded">npm run dev:server</code>
-              </span>
-            </div>
-          </div>
-        )}
-      </header>
-
-      <div className="flex h-[calc(100vh-80px)] bg-slate-900">
-        {/* Sidebar Navigation */}
-        <nav className={`fixed lg:relative inset-y-0 left-0 z-50 w-64 bg-slate-800 border-r border-slate-700 p-4 transform transition-transform duration-300 ease-in-out ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        }`}>
-          <div className="space-y-2">
-            {[
-              { id: 'monitor', label: 'Live Monitor', icon: Video },
-              { id: 'analyzer', label: 'Video Analyzer', icon: Upload },
-              { id: 'text', label: 'Text Analyzer', icon: FileText },
-              { id: 'test-detector', label: 'Test Detector', icon: Shield },
-              { id: 'platform-integration', label: 'Platform Integration', icon: MonitorSmartphone },
-              { id: 'reports', label: 'Reports', icon: BarChart },
-              { id: 'summary', label: 'AI Verdict', icon: History },
-              { id: 'evidence', label: 'Evidence', icon: AlertTriangle },
-              { id: 'metrics', label: 'Metrics', icon: Mic },
-              { id: 'settings', label: 'Settings', icon: Settings }
-            ].map(({ id, label, icon: Icon }) => (
+      ) : (
+        <div className="min-h-screen bg-slate-900 text-white overflow-hidden">
+          {/* Header */}
+          <header className="bg-slate-800 border-b border-slate-700 px-4 sm:px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-600 rounded-lg">
+                  <img src={BoltLogo} alt="Bolt Logo" className="w-6 h-6" />
+                </div>
+                <div>
+                  <h1 className="text-lg sm:text-xl font-bold">TRUVOICE</h1>
+                  <p className="text-xs sm:text-sm text-slate-400">Real-Time Deepfake Detection</p>
+                </div>
+              </div>
+              
+              {/* Mobile menu button */}
               <button
-                key={id}
-                onClick={() => {
-                  setActiveTab(id as any);
-                  setSidebarOpen(false); // Close sidebar on mobile after selection
-                }}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                  activeTab === id
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-300 hover:bg-slate-700 hover:text-white'
-                }`}
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="lg:hidden p-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition-colors"
               >
-                <Icon className="w-5 h-5" />
-                <span className="text-sm sm:text-base">{label}</span>
+                {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
-            ))}
-          </div>
-
-          {/* Trust Score Display */}
-          <div className="mt-8">
-            <TrustMeter 
-              score={isActive ? currentData.overallScore : 0}
-              isActive={isActive}
-              alert={currentData.alert}
-            />
-          </div>
-
-          {/* Quick Stats */}
-          {isActive && (
-            <div className="mt-6 space-y-3">
-              <div className="bg-slate-700 rounded-lg p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm text-slate-400">Video Trust</span>
-                  <span className={`text-xs sm:text-sm font-medium ${
-                    currentData.videoScore > 70 ? 'text-green-400' : 
-                    currentData.videoScore > 40 ? 'text-yellow-400' : 'text-red-400'
-                  }`}>
-                    {currentData.videoScore}%
+              
+              <div className="hidden lg:flex items-center space-x-4">
+                {/* Backend Status */}
+                <div className="flex items-center space-x-2 text-sm">
+                  <div className={`w-2 h-2 rounded-full ${
+                    backendStatus === 'online' ? 'bg-green-400' : 
+                    backendStatus === 'offline' ? 'bg-red-400' : 'bg-yellow-400'
+                  }`}></div>
+                  <span className="text-slate-300">
+                    Backend: {backendStatus === 'checking' ? 'Checking...' : backendStatus}
                   </span>
                 </div>
-              </div>
-              <div className="bg-slate-700 rounded-lg p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm text-slate-400">Audio Trust</span>
-                  <span className={`text-xs sm:text-sm font-medium ${
-                    currentData.audioScore > 70 ? 'text-green-400' : 
-                    currentData.audioScore > 40 ? 'text-yellow-400' : 'text-red-400'
-                  }`}>
-                    {currentData.audioScore}%
+                
+                {/* Detection Status */}
+                <div className="flex items-center space-x-2 text-sm">
+                  <div className={`w-2 h-2 rounded-full ${
+                    isActive ? 'bg-green-400 animate-pulse' : 
+                    hasPermissions ? 'bg-slate-600' : 'bg-red-400'
+                  }`}></div>
+                  <span className="text-slate-300">
+                    {!hasPermissions ? 'NO PERMISSIONS' : isActive ? 'MONITORING' : 'INACTIVE'}
                   </span>
                 </div>
-              </div>
-              <div className="bg-slate-700 rounded-lg p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm text-slate-400">Alerts</span>
-                  <span className="text-xs sm:text-sm font-medium text-red-400">
-                    {suspiciousSegments.length}
-                  </span>
-                </div>
-              </div>
-              {currentData.processingTime && (
-                <div className="bg-slate-700 rounded-lg p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs sm:text-sm text-slate-400">Latency</span>
-                    <span className="text-xs sm:text-sm font-medium text-blue-400">
-                      {currentData.processingTime}ms
-                    </span>
+                
+                {/* Processing Indicator */}
+                {isProcessing && (
+                  <div className="flex items-center space-x-2 text-sm text-blue-400">
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                    <span>Processing...</span>
                   </div>
+                )}
+                
+                <button
+                  onClick={handleToggleDetection}
+                  disabled={backendStatus === 'offline' || isRequestingPermissions}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                    !hasPermissions 
+                      ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                      : isActive 
+                        ? 'bg-red-600 hover:bg-red-700 text-white' 
+                        : 'bg-green-600 hover:bg-green-700 text-white'
+                  } ${(backendStatus === 'offline' || isRequestingPermissions) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {isRequestingPermissions ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Requesting...</span>
+                    </>
+                  ) : !hasPermissions ? (
+                    <>
+                      <Camera className="w-4 h-4" />
+                      <span>Grant Permissions</span>
+                    </>
+                  ) : isActive ? (
+                    <>
+                      <Pause className="w-4 h-4" />
+                      <span>Stop Detection</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4" />
+                      <span>Start Detection</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+            
+            {/* Mobile Controls */}
+            <div className="lg:hidden mt-4 flex flex-wrap items-center justify-between gap-3">
+              {/* Backend Status */}
+              <div className="flex items-center space-x-2 text-sm">
+                <div className={`w-2 h-2 rounded-full ${
+                  backendStatus === 'online' ? 'bg-green-400' : 
+                  backendStatus === 'offline' ? 'bg-red-400' : 'bg-yellow-400'
+                }`}></div>
+                <span className="text-slate-300">
+                  {backendStatus === 'checking' ? 'Checking...' : backendStatus}
+                </span>
+              </div>
+              
+              {/* Detection Status */}
+              <div className="flex items-center space-x-2 text-sm">
+                <div className={`w-2 h-2 rounded-full ${
+                  isActive ? 'bg-green-400 animate-pulse' : 
+                  hasPermissions ? 'bg-slate-600' : 'bg-red-400'
+                }`}></div>
+                <span className="text-slate-300">
+                  {!hasPermissions ? 'NO PERMISSIONS' : isActive ? 'MONITORING' : 'INACTIVE'}
+                </span>
+              </div>
+              
+              {/* Processing Indicator */}
+              {isProcessing && (
+                <div className="flex items-center space-x-2 text-sm text-blue-400">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                  <span>Processing...</span>
                 </div>
               )}
+              
+              <button
+                onClick={handleToggleDetection}
+                disabled={backendStatus === 'offline' || isRequestingPermissions}
+                className={`flex items-center space-x-2 px-3 py-2 rounded-lg font-medium transition-all text-sm ${
+                  !hasPermissions 
+                    ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                    : isActive 
+                      ? 'bg-red-600 hover:bg-red-700 text-white' 
+                      : 'bg-green-600 hover:bg-green-700 text-white'
+                } ${(backendStatus === 'offline' || isRequestingPermissions) ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {isRequestingPermissions ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Requesting...</span>
+                  </>
+                ) : !hasPermissions ? (
+                  <>
+                    <Camera className="w-4 h-4" />
+                    <span>Grant Permissions</span>
+                  </>
+                ) : isActive ? (
+                  <>
+                    <Pause className="w-4 h-4" />
+                    <span>Stop</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" />
+                    <span>Start</span>
+                  </>
+                )}
+              </button>
             </div>
-          )}
-        </nav>
+            
+            {/* Permission Error */}
+            {permissionError && (
+              <div className="mt-3 p-3 bg-red-900/50 border border-red-700 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="w-4 h-4 text-red-400" />
+                  <span className="text-sm text-red-300">{permissionError}</span>
+                </div>
+              </div>
+            )}
+            
+            {/* Backend Offline Warning */}
+            {backendStatus === 'offline' && (
+              <div className="mt-3 p-3 bg-yellow-900/50 border border-yellow-700 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="w-4 h-4 text-yellow-400" />
+                  <span className="text-sm text-yellow-300">
+                    Backend server offline. Please start the Node.js server: <code className="bg-slate-800 px-2 py-1 rounded">npm run dev:server</code>
+                  </span>
+                </div>
+              </div>
+            )}
+          </header>
 
-        {/* Mobile overlay */}
-        {sidebarOpen && (
-          <div 
-            className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
+          <div className="flex h-[calc(100vh-80px)] bg-slate-900">
+            {/* Sidebar Navigation */}
+            <nav className={`fixed lg:relative inset-y-0 left-0 z-50 w-64 bg-slate-800 border-r border-slate-700 p-4 transform transition-transform duration-300 ease-in-out ${
+              sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+            }`}>
+              <div className="space-y-2">
+                {[
+                  { id: 'monitor', label: 'Live Monitor', icon: Video },
+                  { id: 'analyzer', label: 'Video Analyzer', icon: Upload },
+                  { id: 'text', label: 'Text Analyzer', icon: FileText },
+                  { id: 'test-detector', label: 'Test Detector', icon: Shield },
+                  { id: 'platform-integration', label: 'Platform Integration', icon: MonitorSmartphone },
+                  { id: 'reports', label: 'Reports', icon: BarChart },
+                  { id: 'summary', label: 'AI Verdict', icon: History },
+                  { id: 'evidence', label: 'Evidence', icon: AlertTriangle },
+                  { id: 'metrics', label: 'Metrics', icon: Mic },
+                  { id: 'settings', label: 'Settings', icon: Settings }
+                ].map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      setActiveTab(id as any);
+                      setSidebarOpen(false); // Close sidebar on mobile after selection
+                    }}
+                    className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                      activeTab === id
+                        ? 'bg-blue-600 text-white'
+                        : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span className="text-sm sm:text-base">{label}</span>
+                  </button>
+                ))}
+              </div>
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-hidden">
-          <div className="h-full p-4 sm:p-6 overflow-y-auto">
-            {activeTab === 'monitor' && (
-              <LiveMonitor 
-                isActive={isActive}
-                currentData={currentData}
-                onDetectionResult={handleDetectionResult}
-                backendStatus={backendStatus}
+              {/* Trust Score Display */}
+              <div className="mt-8">
+                <TrustMeter 
+                  score={isActive ? currentData.overallScore : 0}
+                  isActive={isActive}
+                  alert={currentData.alert}
+                />
+              </div>
+
+              {/* Quick Stats */}
+              {isActive && (
+                <div className="mt-6 space-y-3">
+                  <div className="bg-slate-700 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs sm:text-sm text-slate-400">Video Trust</span>
+                      <span className={`text-xs sm:text-sm font-medium ${
+                        currentData.videoScore > 70 ? 'text-green-400' : 
+                        currentData.videoScore > 40 ? 'text-yellow-400' : 'text-red-400'
+                      }`}>
+                        {currentData.videoScore}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="bg-slate-700 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs sm:text-sm text-slate-400">Audio Trust</span>
+                      <span className={`text-xs sm:text-sm font-medium ${
+                        currentData.audioScore > 70 ? 'text-green-400' : 
+                        currentData.audioScore > 40 ? 'text-yellow-400' : 'text-red-400'
+                      }`}>
+                        {currentData.audioScore}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="bg-slate-700 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs sm:text-sm text-slate-400">Alerts</span>
+                      <span className="text-xs sm:text-sm font-medium text-red-400">
+                        {suspiciousSegments.length}
+                      </span>
+                    </div>
+                  </div>
+                  {currentData.processingTime && (
+                    <div className="bg-slate-700 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs sm:text-sm text-slate-400">Latency</span>
+                        <span className="text-xs sm:text-sm font-medium text-blue-400">
+                          {currentData.processingTime}ms
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </nav>
+
+            {/* Mobile overlay */}
+            {sidebarOpen && (
+              <div 
+                className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+                onClick={() => setSidebarOpen(false)}
               />
             )}
-            {activeTab === 'analyzer' && (
-              <VideoAnalyzer 
-                onDetectionResult={handleDetectionResult}
-                backendStatus={backendStatus}
-              />
-            )}
-            {activeTab === 'text' && (
-              <TextAnalyzer 
-                onDetectionResult={handleDetectionResult}
-                backendStatus={backendStatus}
-              />
-            )}
-            {activeTab === 'test-detector' && (
-              <TestResponseDetector 
-                onDetectionResult={handleDetectionResult}
-                backendStatus={backendStatus}
-              />
-            )}
-            {activeTab === 'platform-integration' && (
-              <PlatformIntegration />
-            )}
-            {activeTab === 'reports' && (
-              <ReportDashboard 
-                detectionHistory={detectionHistory}
-                suspiciousSegments={suspiciousSegments}
-              />
-            )}
-            {activeTab === 'summary' && (
-              <SessionSummary 
-                currentSession={currentSession}
-                detectionHistory={detectionHistory}
-                suspiciousSegments={suspiciousSegments}
-              />
-            )}
-            {activeTab === 'evidence' && (
-              <EvidencePanel 
-                suspiciousSegments={suspiciousSegments}
-                onClearSegments={clearSuspiciousSegments}
-              />
-            )}
-            {activeTab === 'metrics' && (
-              <MetricsPanel 
-                detectionHistory={detectionHistory}
-                currentData={currentData}
-                isActive={isActive}
-              />
-            )}
-            {activeTab === 'settings' && (
-              <SettingsPanel />
-            )}
+
+            {/* Main Content */}
+            <main className="flex-1 overflow-hidden">
+              <div className="h-full p-4 sm:p-6 overflow-y-auto">
+                {activeTab === 'monitor' && (
+                  <LiveMonitor 
+                    isActive={isActive}
+                    currentData={currentData}
+                    onDetectionResult={handleDetectionResult}
+                    backendStatus={backendStatus}
+                  />
+                )}
+                {activeTab === 'analyzer' && (
+                  <VideoAnalyzer 
+                    onDetectionResult={handleDetectionResult}
+                    backendStatus={backendStatus}
+                  />
+                )}
+                {activeTab === 'text' && (
+                  <TextAnalyzer 
+                    onDetectionResult={handleDetectionResult}
+                    backendStatus={backendStatus}
+                  />
+                )}
+                {activeTab === 'test-detector' && (
+                  <TestResponseDetector 
+                    onDetectionResult={handleDetectionResult}
+                    backendStatus={backendStatus}
+                  />
+                )}
+                {activeTab === 'platform-integration' && (
+                  <PlatformIntegration />
+                )}
+                {activeTab === 'reports' && (
+                  <ReportDashboard 
+                    detectionHistory={detectionHistory}
+                    suspiciousSegments={suspiciousSegments}
+                  />
+                )}
+                {activeTab === 'summary' && (
+                  <SessionSummary 
+                    currentSession={currentSession}
+                    detectionHistory={detectionHistory}
+                    suspiciousSegments={suspiciousSegments}
+                  />
+                )}
+                {activeTab === 'evidence' && (
+                  <EvidencePanel 
+                    suspiciousSegments={suspiciousSegments}
+                    onClearSegments={clearSuspiciousSegments}
+                  />
+                )}
+                {activeTab === 'metrics' && (
+                  <MetricsPanel 
+                    detectionHistory={detectionHistory}
+                    currentData={currentData}
+                    isActive={isActive}
+                  />
+                )}
+                {activeTab === 'settings' && (
+                  <SettingsPanel />
+                )}
+              </div>
+            </main>
           </div>
-        </main>
-      </div>
-    </div>
+        </div>
+      )}
+    </>
   );
 }
 

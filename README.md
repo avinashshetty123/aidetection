@@ -39,6 +39,40 @@ A real-time AI-powered deepfake detection system for video and audio.
 3. **Custom Domain (Optional):**
    - Add your custom domain in Netlify settings
 
+### Troubleshooting
+
+#### Blue Screen Issue
+If you see a blue screen instead of the application:
+
+1. **Check Browser Console:**
+   - Open Developer Tools (F12)
+   - Look for any JavaScript errors in the Console tab
+   - Check the Network tab for failed API requests
+
+2. **Environment Variables:**
+   - Ensure `VITE_API_URL` is set correctly in Netlify
+   - The URL should point to your Railway backend
+   - Format: `https://your-app-name.railway.app`
+
+3. **Backend Status:**
+   - Verify your Railway backend is running
+   - Check the `/api/health` endpoint: `https://your-app.railway.app/api/health`
+   - Should return a JSON response with status information
+
+4. **Clear Cache:**
+   - Hard refresh the page (Ctrl+Shift+R)
+   - Clear browser cache and cookies
+   - Try in an incognito/private window
+
+5. **Local Testing:**
+   - Run `npm run dev` locally to test
+   - Check if the issue occurs in development mode
+
+#### Common Issues:
+- **CORS Errors**: Backend CORS configuration should allow your frontend domain
+- **API Timeout**: Backend health check might be timing out
+- **Build Errors**: Check Netlify build logs for any compilation errors
+
 ### Local Development
 
 #### Prerequisites
