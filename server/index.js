@@ -233,16 +233,21 @@ function runPythonInference(filePath, mediaType) {
     if (process.platform === 'win32') {
       pythonCommand = 'python';
     } else {
-      // On Unix-like systems, try python3 first, then python
-      try {
-        require('child_process').execSync('python3 --version', { stdio: 'ignore' });
-        pythonCommand = 'python3';
-      } catch (e) {
+      // On Railway/Linux, try virtual environment first, then system Python
+      const venvPython = path.join(__dirname, 'venv', 'bin', 'python3');
+      if (fs.existsSync(venvPython)) {
+        pythonCommand = venvPython;
+      } else {
         try {
-          require('child_process').execSync('python --version', { stdio: 'ignore' });
-          pythonCommand = 'python';
-        } catch (e2) {
-          return reject(new Error('Python not found. Please install Python 3.7+ and ensure it\'s in your PATH'));
+          require('child_process').execSync('python3 --version', { stdio: 'ignore' });
+          pythonCommand = 'python3';
+        } catch (e) {
+          try {
+            require('child_process').execSync('python --version', { stdio: 'ignore' });
+            pythonCommand = 'python';
+          } catch (e2) {
+            return reject(new Error('Python not found. Please install Python 3.7+ and ensure it\'s in your PATH'));
+          }
         }
       }
     }
@@ -420,16 +425,22 @@ app.post('/api/v1/analyze', authenticateToken, async (req, res) => {
     if (process.platform === 'win32') {
       pythonCommand = 'python';
     } else {
-      // On Unix-like systems, try python3 first, then python
-      try {
-        require('child_process').execSync('python3 --version', { stdio: 'ignore' });
-        pythonCommand = 'python3';
-      } catch (e) {
+      // On Railway/Linux, try virtual environment first, then system Python
+      const venvPython = path.join(__dirname, 'venv', 'bin', 'python3');
+      if (fs.existsSync(venvPython)) {
+        pythonCommand = venvPython;
+      } else {
+        // On Unix-like systems, try python3 first, then python
         try {
-          require('child_process').execSync('python --version', { stdio: 'ignore' });
-          pythonCommand = 'python';
-        } catch (e2) {
-          throw new Error('Python not found. Please install Python 3.7+ and ensure it\'s in your PATH');
+          require('child_process').execSync('python3 --version', { stdio: 'ignore' });
+          pythonCommand = 'python3';
+        } catch (e) {
+          try {
+            require('child_process').execSync('python --version', { stdio: 'ignore' });
+            pythonCommand = 'python';
+          } catch (e2) {
+            throw new Error('Python not found. Please install Python 3.7+ and ensure it\'s in your PATH');
+          }
         }
       }
     }
@@ -890,25 +901,31 @@ app.get('/api/health', (req, res) => {
   if (process.platform === 'win32') {
     pythonCommand = 'python';
   } else {
-    // On Unix-like systems, try python3 first, then python
-    try {
-      require('child_process').execSync('python3 --version', { stdio: 'ignore' });
-      pythonCommand = 'python3';
-    } catch (e) {
+    // On Railway/Linux, try virtual environment first, then system Python
+    const venvPython = path.join(__dirname, 'venv', 'bin', 'python3');
+    if (fs.existsSync(venvPython)) {
+      pythonCommand = venvPython;
+    } else {
+      // On Unix-like systems, try python3 first, then python
       try {
-        require('child_process').execSync('python --version', { stdio: 'ignore' });
-        pythonCommand = 'python';
-      } catch (e2) {
-        return res.json({ 
-          status: 'ok', 
-          timestamp: Date.now(),
-          python: 'unavailable',
-          pythonError: 'Python not found. Please install Python 3.7+ and ensure it\'s in your PATH',
-          models: fs.existsSync(modelsDir) ? 'available' : 'missing',
-          tempDir: fs.existsSync(tempDir) ? 'available' : 'missing',
-          detectionHistory: 0,
-          suspiciousSegments: 0
-        });
+        require('child_process').execSync('python3 --version', { stdio: 'ignore' });
+        pythonCommand = 'python3';
+      } catch (e) {
+        try {
+          require('child_process').execSync('python --version', { stdio: 'ignore' });
+          pythonCommand = 'python';
+        } catch (e2) {
+          return res.json({ 
+            status: 'ok', 
+            timestamp: Date.now(),
+            python: 'unavailable',
+            pythonError: 'Python not found. Please install Python 3.7+ and ensure it\'s in your PATH',
+            models: fs.existsSync(modelsDir) ? 'available' : 'missing',
+            tempDir: fs.existsSync(tempDir) ? 'available' : 'missing',
+            detectionHistory: 0,
+            suspiciousSegments: 0
+          });
+        }
       }
     }
   }

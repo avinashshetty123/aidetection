@@ -2,15 +2,52 @@
 
 A real-time AI-powered deepfake detection system for video and audio.
 
-## Getting Started
+## 🚀 Deployment
 
-### Prerequisites
+### Backend Deployment (Railway)
+
+1. **Connect to Railway:**
+   - Go to [Railway.app](https://railway.app)
+   - Connect your GitHub repository
+   - Select the `server` folder as the source
+
+2. **Environment Variables:**
+   - `PORT`: Railway will set this automatically
+   - `PYTHONUNBUFFERED`: Set to `1`
+   - `NODE_ENV`: Set to `production`
+
+3. **Build Settings:**
+   - Railway will automatically detect the Node.js project
+   - The `postinstall` script will install Python and dependencies
+   - Start command: `npm start`
+
+4. **Health Check:**
+   - Railway will use `/api/health` endpoint for health checks
+
+### Frontend Deployment (Netlify)
+
+1. **Connect to Netlify:**
+   - Go to [Netlify.com](https://netlify.com)
+   - Connect your GitHub repository
+   - Set build settings:
+     - Build command: `npm run build`
+     - Publish directory: `dist`
+
+2. **Environment Variables:**
+   - `VITE_API_URL`: Set to your Railway backend URL (e.g., `https://your-app.railway.app`)
+
+3. **Custom Domain (Optional):**
+   - Add your custom domain in Netlify settings
+
+### Local Development
+
+#### Prerequisites
 
 - Node.js (v16 or higher)
 - Python 3.8 or higher
 - npm or yarn
 
-### Setup
+#### Setup
 
 1. Install JavaScript dependencies:
    ```
@@ -23,7 +60,7 @@ A real-time AI-powered deepfake detection system for video and audio.
    npm run setup:python
    ```
 
-### Text Detection Setup
+#### Text Detection Setup
 
 For text detection functionality, you have two options:
 
@@ -39,7 +76,7 @@ For text detection functionality, you have two options:
      ```
    - Download and install Tesseract OCR from: https://github.com/UB-Mannheim/tesseract/wiki
 
-### Running the Application
+#### Running the Application
 
 To start both frontend and backend simultaneously:
 
@@ -51,7 +88,7 @@ This will start:
 - Frontend: Vite development server (typically on http://localhost:5173)
 - Backend: Express server on http://localhost:3001
 
-### Running Components Separately
+#### Running Components Separately
 
 To run only the frontend:
 ```
@@ -63,7 +100,7 @@ To run only the backend:
 npm run dev:server
 ```
 
-### System Maintenance
+#### System Maintenance
 
 To optimize and clean the system:
 ```
